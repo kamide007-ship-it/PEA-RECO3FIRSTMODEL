@@ -8,7 +8,7 @@ let g_selectedAgent = null;
 // ── Test Mode Configuration ────────────────────────────────
 async function loadTestModeConfig() {
   try {
-    const res = await fetch('/api/config/test-mode');
+    const res = await fetch('/api/config/test-mode', {credentials: 'include'});
     const data = await res.json();
     g_testMode = data.test_mode;
     g_requireApproval = data.require_approval;
