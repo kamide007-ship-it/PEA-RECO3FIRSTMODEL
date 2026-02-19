@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/static/reco3.css" />
 </head>
 <body>
+  <div id="toast-root"></div>
   <main class="wrap">
     <header class="top">
       <div style="display:flex;align-items:center;gap:12px">
@@ -56,6 +57,12 @@
         <button class="btn" onclick="doFb('recalculate')">Recalc</button>
         <button class="btn" onclick="doFb('bad')">NG</button>
       </div>
+    </section>
+
+    <section class="card">
+      <h2>System</h2>
+      <div id="sysMetrics" class="kv"></div>
+      <div id="sysHealth" style="margin-top:8px"></div>
     </section>
 
     <section class="card">

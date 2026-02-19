@@ -16,3 +16,21 @@
 .bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
 .bar .fill{height:100%;background:var(--primary);border-radius:3px}
 .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;color:var(--muted);background:var(--bg);border:1px solid var(--border)}
+
+/* ── Toast ── */
+#toast-root{position:fixed;top:12px;right:12px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{pointer-events:auto;min-width:240px;max-width:360px;padding:10px 14px;border-radius:8px;font-size:13px;line-height:1.4;box-shadow:0 2px 8px rgba(0,0,0,.12);opacity:0;transform:translateX(20px);animation:toastIn .25s ease forwards}
+.toast.out{animation:toastOut .2s ease forwards}
+.toast-info{background:#EFF6FF;border:1px solid #BFDBFE;color:#1E40AF}
+.toast-warn{background:#FFFBEB;border:1px solid #FDE68A;color:#92400E}
+.toast-error{background:#FEF2F2;border:1px solid #FECACA;color:#DC2626}
+.toast-title{font-weight:600;margin-bottom:2px}
+.toast-msg{font-size:12px;opacity:.85}
+@keyframes toastIn{to{opacity:1;transform:translateX(0)}}
+@keyframes toastOut{to{opacity:0;transform:translateX(20px)}}
+
+/* ── Status Pill ── */
+.statusPill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.statusPill.running{background:#DBEAFE;color:#1D4ED8}
+.statusPill.safe{background:#FEE2E2;color:#DC2626}
+.statusPill.stopped{background:#F3F4F6;color:#6B7280}

@@ -1,6 +1,30 @@
 let lastSession = null;
 let lastDomain = "general";
 
+// ═══ Toast Notification ══════════════════════════════════════════
+const _toastCooldowns = {};
+const TOAST_DURATION = 6000;     // 6秒
+const TOAST_COOLDOWN = 60000;    // 同一key 60秒
+
+function notify(level, title, message, key){
+  if(key){
+    const now = Date.now();
+    const last = _toastCooldowns[key] || 0;
+    if(now - last < TOAST_COOLDOWN) return;
+    _toastCooldowns[key] = now;
+  }
+  const root = document.getElementById('toast-root');
+  if(!root) return;
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + (level || 'info');
+  el.innerHTML = `<div class="toast-title">${title||''}</div><div class="toast-msg">${message||''}</div>`;
+  root.appendChild(el);
+  setTimeout(()=>{
+    el.classList.add('out');
+    setTimeout(()=>el.remove(), 250);
+  }, TOAST_DURATION);
+}
+
 // ═══ Auto Monitor/Control Loop ═══════════════════════════════════
 let autoRunning = false;
 let statusPollTimer = null;
@@ -77,8 +101,10 @@ function evaluateAndAct(status, logs){
     lastAction = action;
     updateAutoMonitorUI();
     if(action === 'TRIGGER_CHAT'){
+      notify('warn', 'Anomaly Detected', reason, 'trigger:'+reason);
       triggerChat(reason);
     }else if(action === 'SAFE_MODE'){
+      notify('error', 'Safe Mode', reason, 'safe:'+reason);
       console.log('[AUTO] SAFE_MODE triggered:', reason);
     }
   }
@@ -145,10 +171,16 @@ function autoStop(){
 function updateAutoMonitorUI(){
   const el = document.getElementById('autoMonitor');
   if(!el) return;
-  const dotClass = lastAction.startsWith('SAFE') ? 'safe' : (autoRunning ? 'on' : 'off');
-  const label = autoRunning ? 'Auto' : 'Off';
-  const extra = failureCount > 0 ? ` <span style="color:#DC2626">F${failureCount}</span>` : '';
-  el.innerHTML = `<div class="autoStatus"><span class="dot ${dotClass}"></span><span>${label}</span>${extra}</div>`;
+  let pillClass, pillLabel;
+  if(lastAction.startsWith('SAFE')){
+    pillClass = 'safe'; pillLabel = 'SAFE MODE';
+  } else if(autoRunning){
+    pillClass = 'running'; pillLabel = 'RUNNING';
+  } else {
+    pillClass = 'stopped'; pillLabel = 'STOPPED';
+  }
+  const extra = failureCount > 0 ? ` <span style="color:#DC2626;font-size:11px">F${failureCount}</span>` : '';
+  el.innerHTML = `<span class="statusPill ${pillClass}">${pillLabel}</span>${extra}`;
 }
 
 async function api(path, method='GET', body=null){
@@ -166,6 +198,7 @@ async function api(path, method='GET', body=null){
       if(r.status === 401) {
         const msg = 'セッション切れ。ページを再読み込みしてください。';
         showError(msg);
+        notify('error', 'Session Expired', msg, 'auth:401');
         if(autoRunning) autoStop();  // ← 自動停止
       }
       throw new Error(JSON.stringify(j));
@@ -279,7 +312,49 @@ async function doFb(kind){
   }
 }
 
+// ═══ System Monitor ══════════════════════════════════════════════
+let sysPollTimer = null;
+const SYS_POLL_INTERVAL = 10000; // 10秒
+
+async function pollSystem(){
+  try{
+    const res = await api('/api/system', 'GET');
+    showSystemMetrics(res.metrics, res.health);
+  }catch(e){
+    console.warn('pollSystem error:', e);
+  }
+}
+
+function showSystemMetrics(m, h){
+  const el = document.getElementById('sysMetrics');
+  if(!el || !m) return;
+  const rows = [
+    ['CPU', m.cpu_percent + '%'],
+    ['Memory', m.mem_used_mb + ' / ' + m.mem_total_mb + ' MB (' + m.mem_percent + '%)'],
+    ['Disk', m.disk_used_gb + ' / ' + m.disk_total_gb + ' GB (' + m.disk_percent + '%)'],
+    ['Load', m.load_1m + ' / ' + m.load_5m + ' / ' + m.load_15m],
+    ['Platform', m.platform + ' / Python ' + m.python],
+  ];
+  el.innerHTML = rows.map(([k,v])=>`<div class="k">${k}</div><div>${v}</div>`).join('');
+
+  const hEl = document.getElementById('sysHealth');
+  if(!hEl || !h) return;
+  if(h.status === 'ok'){
+    hEl.innerHTML = '<span class="badge" style="color:#16A34A">OK</span>';
+  } else {
+    const alerts = (h.alerts||[]).map(a=>`<span class="badge" style="color:${a.level==='critical'?'#DC2626':'#D97706'}">${a.msg}</span>`).join(' ');
+    hEl.innerHTML = alerts;
+    if(h.status === 'critical'){
+      notify('error', 'System Critical', (h.alerts||[]).map(a=>a.msg).join(', '), 'sys:critical');
+    } else if(h.status === 'warning'){
+      notify('warn', 'System Warning', (h.alerts||[]).map(a=>a.msg).join(', '), 'sys:warning');
+    }
+  }
+}
+
 document.addEventListener('DOMContentLoaded', ()=>{
   addMsg('assistant', 'RECO3 ready.');
   autoStart();
+  pollSystem();
+  sysPollTimer = setInterval(pollSystem, SYS_POLL_INTERVAL);
 });
