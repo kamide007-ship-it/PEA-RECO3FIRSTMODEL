@@ -288,6 +288,17 @@ def get_status() -> Dict[str, Any]:
         "has_anthropic_key": bool(os.environ.get("ANTHROPIC_API_KEY")),
     }
 
+    # API Key protection status (safe to expose - no secrets revealed)
+    api_key_mode = os.environ.get("API_KEY_MODE", "enforce").strip().lower()
+    api_key_header = os.environ.get("API_KEY_HEADER", "X-API-Key").strip()
+    api_key_has_key = bool(os.environ.get("API_KEY", "").strip())
+
+    api_key_protection = {
+        "enabled": api_key_mode == "enforce" and api_key_has_key,
+        "mode": api_key_mode,
+        "header": api_key_header,
+    }
+
     return {
         "k": float(state.get("k", 1.5)), "eta": float(state.get("eta", 0.01)),
         "total_sessions": total_sessions, "avg_deviation": round(avgD, 6),
@@ -300,6 +311,7 @@ def get_status() -> Dict[str, Any]:
         "active_llm_adapter": active_adapter,
         "active_llm_model": active_model,
         "dual_keys": dual_keys,
+        "api_key_protection": api_key_protection,
     }
 
 def get_logs(limit: int = 50) -> List[Dict[str, Any]]:
