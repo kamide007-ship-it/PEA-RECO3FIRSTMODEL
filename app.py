@@ -1,7 +1,7 @@
 import logging
 import os
 from functools import wraps
-from flask import Flask, jsonify, request, render_template, redirect
+from flask import Flask, jsonify, request, render_template, redirect, send_from_directory
 
 from reco2.engine import evaluate_payload, record_feedback, patrol, get_status, get_logs
 from reco2.store import ensure_state_file
@@ -122,7 +122,24 @@ def page_index():
 def page_r3():
     return render_template("reco3.html")
 
-@app.post("/api/evaluate")
+# ── PWA Assets (Root-level for Service Worker scope) ────────────────
+
+@app.get("/manifest.webmanifest")
+def pwa_manifest():
+    """Serve manifest from root for PWA installation"""
+    return send_from_directory(app.static_folder, "manifest.webmanifest", mimetype="application/manifest+json")
+
+@app.get("/service-worker.js")
+def pwa_service_worker():
+    """Serve Service Worker from root to control entire app scope"""
+    return send_from_directory(app.static_folder, "service-worker.js", mimetype="application/javascript")
+
+@app.get("/favicon.ico")
+def pwa_favicon():
+    """Serve favicon from root"""
+    return send_from_directory(app.static_folder, "favicon.ico", mimetype="image/x-icon")
+
+# ── API Routes ──────────────────────────────────────────────────────
 @require_api_key
 def api_evaluate():
     try:
