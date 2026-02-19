@@ -111,11 +111,27 @@ class OpenAIAdapter(BaseLLMAdapter):
             raise RuntimeError(f"OpenAI API IO/Timeout error: {e}")
 
 def _resolve_auto() -> str:
-    """環境変数から最適なアダプターを自動選択"""
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        return "claude"
-    if os.environ.get("OPENAI_API_KEY"):
-        return "openai"
+    """環境変数から最適なアダプターを自動選択
+
+    AUTO_PREFERENCE による優先順制御:
+    - "anthropic_first" (デフォルト): ANTHROPIC_API_KEY > OPENAI_API_KEY
+    - "openai_first": OPENAI_API_KEY > ANTHROPIC_API_KEY
+    """
+    has_anthropic = os.environ.get("ANTHROPIC_API_KEY")
+    has_openai = os.environ.get("OPENAI_API_KEY")
+    preference = os.environ.get("AUTO_PREFERENCE", "anthropic_first").strip().lower()
+
+    if preference == "openai_first":
+        if has_openai:
+            return "openai"
+        if has_anthropic:
+            return "claude"
+    else:  # anthropic_first (default)
+        if has_anthropic:
+            return "claude"
+        if has_openai:
+            return "openai"
+
     return "dummy"
 
 def create_adapter(name: str = "dummy", **kwargs) -> BaseLLMAdapter:

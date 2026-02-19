@@ -1,4 +1,5 @@
 import logging
+import os
 from functools import wraps
 from flask import Flask, jsonify, request, render_template, redirect
 
@@ -17,17 +18,94 @@ app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["JSON_AS_ASCII"] = False
 ensure_state_file()
 
+# ── API Key Configuration ──────────────────────────────────────
+
+def _get_api_key_config():
+    """Get API key configuration from environment variables
+
+    Environment variables:
+    - API_KEY: The actual API key (required for enforce mode)
+    - API_KEY_MODE: "enforce" (default) or "off" (disable auth)
+    - API_KEY_HEADER: Header name to check (default "X-API-Key")
+    - API_KEY_BYPASS_PATHS: Comma-separated paths that don't need auth (overrides defaults)
+    """
+    api_key = os.getenv("API_KEY", "").strip()
+    api_key_mode = os.getenv("API_KEY_MODE", "enforce").strip().lower()
+    api_key_header = os.getenv("API_KEY_HEADER", "X-API-Key").strip()
+
+    # Default bypass paths (PWA static files + pages)
+    default_bypass = [
+        "/",
+        "/r3",
+        "/health",
+        "/favicon.ico",
+        "/manifest.webmanifest",
+        "/static/manifest.webmanifest",
+        "/service-worker.js",
+        "/static/service-worker.js",
+    ]
+
+    # Allow override via environment variable
+    bypass_paths_str = os.getenv("API_KEY_BYPASS_PATHS", "").strip()
+    if bypass_paths_str:
+        bypass_paths = [p.strip() for p in bypass_paths_str.split(",") if p.strip()]
+    else:
+        bypass_paths = default_bypass
+
+    return {
+        "enabled": api_key_mode == "enforce" and bool(api_key),
+        "api_key": api_key,
+        "mode": api_key_mode,
+        "header": api_key_header,
+        "bypass_paths": bypass_paths,
+        "has_key": bool(api_key),
+    }
+
+def _should_bypass_auth(path):
+    """Check if request path should bypass API key authentication"""
+    cfg = _get_api_key_config()
+
+    # Exact match
+    if path in cfg["bypass_paths"]:
+        return True
+
+    # Wildcard match for /static/*
+    if path.startswith("/static/"):
+        for bp in cfg["bypass_paths"]:
+            if bp == "/static/*":
+                return True
+
+    return False
+
+@app.before_request
+def check_api_key():
+    """Global API key validation middleware for /api/* endpoints"""
+    cfg = _get_api_key_config()
+
+    # Skip if mode is "off"
+    if cfg["mode"] != "enforce":
+        return
+
+    # Skip if path bypasses auth
+    if _should_bypass_auth(request.path):
+        return
+
+    # Only enforce for /api/* paths
+    if not request.path.startswith("/api/"):
+        return
+
+    # Validate API key
+    key = request.headers.get(cfg["header"], "").strip()
+    if not key or key != cfg["api_key"]:
+        log.warning(f"API request rejected (invalid/missing key): {request.path}")
+        return jsonify({"error": "unauthorized"}), 401
+
 def require_api_key(f):
+    """Decorator for backwards compatibility (now uses global middleware)"""
     @wraps(f)
     def decorated(*args, **kwargs):
-        cfg = load_config()
-        if not cfg.get("api_key_enabled", False):
-            return f(*args, **kwargs)
-        key = (request.headers.get("X-API-Key")
-               or request.headers.get("Authorization", "").removeprefix("Bearer ").strip())
-        valid_keys = cfg.get("api_keys", [])
-        if not key or key not in valid_keys:
-            return jsonify({"error": "unauthorized"}), 401
+        # Global before_request already handles validation for /api/* paths
+        # This decorator is kept for compatibility but is now largely redundant
         return f(*args, **kwargs)
     return decorated
 
@@ -150,6 +228,30 @@ def api_r3_config():
 
 def main():
     cfg = load_config()
+
+    # Log LLM configuration
+    orch = get_orchestrator()
+    adapter = orch.get_active_adapter()
+    model = orch.get_active_model()
+    has_openai = bool(os.environ.get("OPENAI_API_KEY"))
+    has_anthropic = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    log.info(f"LLM Configuration: adapter={adapter}, model={model}, has_openai_key={has_openai}, has_anthropic_key={has_anthropic}")
+
+    # Log API key configuration
+    api_cfg = _get_api_key_config()
+    is_prod = os.getenv("FLASK_ENV", "development").lower() == "production"
+    if api_cfg["mode"] == "enforce":
+        if api_cfg["has_key"]:
+            log.info(f"API Key Protection: ENABLED (mode=enforce, header={api_cfg['header']})")
+        else:
+            msg = "API Key Protection: DISABLED - API_KEY not set"
+            if is_prod:
+                log.warning(f"⚠️  {msg} (running in production!)")
+            else:
+                log.info(msg)
+    else:
+        log.info(f"API Key Protection: DISABLED (mode=off)")
+
     app.run(host=cfg.get("host", "0.0.0.0"), port=int(cfg.get("port", 5001)), debug=bool(cfg.get("debug", False)))
 
 if __name__ == "__main__":
