@@ -49,6 +49,20 @@
     </section>
 
     <section class="card">
+      <h2>Incidents & Suggestions</h2>
+      <div style="margin-bottom:12px">
+        <label>Status:
+          <select id="incidentStatusFilter" onchange="loadIncidents()">
+            <option value="open">Open</option>
+            <option value="ack">Acknowledged</option>
+            <option value="closed">Closed</option>
+          </select>
+        </label>
+      </div>
+      <div id="incidentsList" style="max-height:400px;overflow-y:auto"></div>
+    </section>
+
+    <section class="card">
       <h2>Detail</h2>
       <div class="kv" id="detail"></div>
       <h3>Feedback</h3>
@@ -57,6 +71,12 @@
         <button class="btn" onclick="doFb('recalculate')">Recalc</button>
         <button class="btn" onclick="doFb('bad')">NG</button>
       </div>
+    </section>
+
+    <section class="card">
+      <h2>Learning Stats</h2>
+      <div id="learningStats" class="kv"></div>
+      <button class="btn" onclick="runLearningJob()" style="margin-top:8px">Run Learning Job</button>
     </section>
 
     <section class="card">
