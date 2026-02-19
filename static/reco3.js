@@ -1,24 +1,174 @@
 let lastSession = null;
 let lastDomain = "general";
 
+// ═══ Auto Monitor/Control Loop ═══════════════════════════════════
+let autoRunning = false;
+let statusPollTimer = null;
+let logsPollTimer = null;
+let lastStatusTime = null;
+let lastLogsTime = null;
+let lastAction = "none";
+let failureCount = 0;
+let lastTriggerTime = 0;
+const TRIGGER_COOLDOWN = 60000;  // 60秒
+const POLL_STATUS_INTERVAL = 3000;  // 3秒
+const POLL_LOGS_INTERVAL = 7000;  // 7秒
+let inFlightRequest = false;
+
+async function pollStatus(){
+  try{
+    const res = await api('/api/status', 'GET');
+    lastStatusTime = new Date().toLocaleTimeString('ja-JP');
+    evaluateAndAct(res, null);
+  }catch(e){
+    console.warn('pollStatus error:', e);
+  }
+}
+
+async function pollLogs(){
+  try{
+    const res = await api('/api/logs?limit=20', 'GET');
+    lastLogsTime = new Date().toLocaleTimeString('ja-JP');
+    evaluateAndAct(null, res);
+  }catch(e){
+    console.warn('pollLogs error:', e);
+  }
+}
+
+function evaluateAndAct(status, logs){
+  if(!autoRunning) return;
+
+  let action = 'none';
+  let reason = '';
+
+  // ルール1: health チェック
+  if(status && status.active_health !== 'ok'){
+    action = 'SAFE_MODE';
+    reason = 'health:' + (status.active_health || 'unknown');
+  }
+
+  // ルール2: ログに警告/エラーがあるか
+  if(logs && Array.isArray(logs)){
+    const recentLogs = logs.slice(-10);
+    for(const log of recentLogs){
+      const logText = JSON.stringify(log).toUpperCase();
+      if(logText.includes('ALERT') || logText.includes('DENY') || logText.includes('ERROR')){
+        action = 'TRIGGER_CHAT';
+        reason = 'found:' + (log.level || 'ALERT');
+        break;
+      }
+    }
+  }
+
+  if(action !== 'none'){
+    lastAction = action;
+    updateAutoMonitorUI();
+    if(action === 'TRIGGER_CHAT'){
+      triggerChat(reason);
+    }else if(action === 'SAFE_MODE'){
+      console.log('[AUTO] SAFE_MODE triggered:', reason);
+    }
+  }
+}
+
+async function triggerChat(reason){
+  if(!autoRunning) return;
+  if(inFlightRequest) return;  // ガード: 同時実行防止
+
+  const now = Date.now();
+  if(now - lastTriggerTime < TRIGGER_COOLDOWN){
+    console.log('[AUTO] Cooldown active. Skip trigger.');
+    return;
+  }
+
+  inFlightRequest = true;
+  try{
+    const prompt = `[AUTO TRIGGER] Reason: ${reason}. Analyze and respond.`;
+    const res = await api('/api/r3/chat', 'POST', {prompt, domain: 'monitor'});
+    addMsg('assistant', '[AUTO] ' + (res.response || 'no response'));
+    lastTriggerTime = now;
+    failureCount = 0;  // リセット
+    lastAction = 'TRIGGER_CHAT:success';
+  }catch(e){
+    failureCount++;
+    console.error('[AUTO] trigger failed (count=' + failureCount + '):', e);
+    if(failureCount >= 3){
+      console.warn('[AUTO] Failure count >= 3. Stopping auto mode.');
+      autoStop();
+    }
+    lastAction = 'TRIGGER_CHAT:fail(' + failureCount + ')';
+  }finally{
+    inFlightRequest = false;
+    updateAutoMonitorUI();
+  }
+}
+
+function autoStart(){
+  if(autoRunning) return;
+  autoRunning = true;
+  failureCount = 0;
+  lastTriggerTime = 0;
+  addMsg('assistant', '🤖 Auto monitor started.');
+
+  statusPollTimer = setInterval(pollStatus, POLL_STATUS_INTERVAL);
+  logsPollTimer = setInterval(pollLogs, POLL_LOGS_INTERVAL);
+
+  // Initial poll
+  pollStatus();
+  pollLogs();
+
+  updateAutoMonitorUI();
+}
+
+function autoStop(){
+  if(!autoRunning) return;
+  autoRunning = false;
+  if(statusPollTimer) clearInterval(statusPollTimer);
+  if(logsPollTimer) clearInterval(logsPollTimer);
+  addMsg('assistant', '⏹️ Auto monitor stopped.');
+  updateAutoMonitorUI();
+}
+
+function updateAutoMonitorUI(){
+  const el = document.getElementById('autoMonitor');
+  if(!el) return;
+  el.innerHTML = `
+    <div class="autoStatus">
+      <span class="badge ${autoRunning ? 'on' : 'off'}">Auto: ${autoRunning ? 'ON' : 'OFF'}</span>
+      <span class="badge">Status: ${lastStatusTime || '--'}</span>
+      <span class="badge">Logs: ${lastLogsTime || '--'}</span>
+      <span class="badge">Action: ${lastAction}</span>
+      <span class="badge fail" style="${failureCount > 0 ? '' : 'display:none'}">Fail: ${failureCount}</span>
+    </div>
+  `;
+}
+
 async function api(path, method='GET', body=null){
   const opt = {method, headers:{}, credentials: 'include'};
   if(body!==null){
     opt.headers['Content-Type'] = 'application/json';
     opt.body = JSON.stringify(body);
   }
-  const r = await fetch(path, opt);
-  const t = await r.text();
-  let j = null;
-  try{ j = JSON.parse(t); }catch(e){ j = {raw:t}; }
-  if(!r.ok) {
-    if(r.status === 401) {
-      const msg = j.detail === 'session_expired' ? 'セッション切れ。ページを再読み込みしてください。' : '認証エラー: ' + (j.error || 'unauthorized');
-      showError(msg);
+  try {
+    const r = await fetch(path, opt);
+    const t = await r.text();
+    let j = null;
+    try{ j = JSON.parse(t); }catch(e){ j = {raw:t}; }
+    if(!r.ok) {
+      if(r.status === 401) {
+        const msg = 'セッション切れ。ページを再読み込みしてください。';
+        showError(msg);
+        if(autoRunning) autoStop();  // ← 自動停止
+      }
+      throw new Error(JSON.stringify(j));
     }
-    throw new Error(JSON.stringify(j));
+    return j;
+  } catch(e) {
+    if(e.message.includes('401') || e.message.includes('unauthorized')) {
+      if(autoRunning) autoStop();
+    }
+    throw e;
   }
-  return j;
 }
 
 function addMsg(role, text){
@@ -123,4 +273,5 @@ async function doFb(kind){
 
 document.addEventListener('DOMContentLoaded', ()=>{
   addMsg('assistant', 'RECO3 ready.');
+  autoStart();
 });
