@@ -159,6 +159,48 @@ For **Development** (disable all authentication):
 API_KEY_MODE=off
 ```
 
+## Deployment Modes
+
+RECO3 supports two deployment modes. **PCエージェントは任意です。必要に応じて選択してください。**
+
+### Mode A: PWA Only (Recommended for Quick Start)
+
+**オンライン中の監視表示・音なし通知・AI出力制御を利用できます。**
+
+- /r3 PWA をブラウザで開く
+- オンライン中のみ監視・制御ループが動作
+- PC側のプロセス監視/制御は不可
+- セットアップ簡単：SECRET_KEY + LLM API鍵 のみ必要
+- コスト：最小限（PWAサーバー費用のみ）
+
+**対象ユースケース**:
+- LLM出力の品質監視のみが必要
+- PCのプロセス制御は不要
+- 小規模導入・検証環境
+
+### Mode B: PWA + PCエージェント (Advanced / Process Control Required)
+
+**PCのプロセス監視・制御・フェイルセーフ自動化を行う場合は、PWAだけではなくPCエージェントが必要です（技術要件）。**
+
+- /r3 PWA + Windows/macOS PCエージェント サービス
+- PCエージェントが 10秒周期で heartbeat/pull/logs を実行
+- リアルタイム CPU/Memory/ディスク監視
+- 異常時に自動でプロセス再起動・レート制限
+- SAFE MODE 自動切替
+- エージェント管理ダッシュボード表示（オンライン/オフライン状態）
+
+**対象ユースケース**:
+- PC側のアルゴリズムプロセスを監視・制御したい
+- フェイルセーフ自動化が必要
+- エンタープライズ導入
+
+**インストール方法** (オプション):
+- Windows: `agent/windows/install_service.ps1` を実行
+- macOS: `agent/macos/install_launchd.sh` を実行
+- 詳細は `/agent/README.md` を参照
+
+---
+
 ## Configuration Priority
 
 When determining LLM configuration, the system follows this priority order:

@@ -23,7 +23,156 @@
   <main class="lp-wrap">
     <section class="lp-hero" style="padding:48px 0">
       <h1>仕様書</h1>
-      <p class="lp-sub">準備中です。</p>
+      <p class="lp-sub">RECO3の動作仕様と機能一覧</p>
+    </section>
+
+    <!-- Mode A / B -->
+    <section class="lp-section">
+      <h2>デプロイメントモード</h2>
+      <p><strong>PCエージェントは任意です。必要に応じて選択してください。</strong></p>
+
+      <div class="lp-grid2">
+        <div class="card">
+          <h3>モード A: PWA のみ</h3>
+          <p><strong>推奨用途：</strong>LLM出力品質の監視のみが必要な場合</p>
+          <ul style="text-align:left">
+            <li>セットアップ: SECRET_KEY + LLM API鍵のみ</li>
+            <li>オンライン中に監視・制御ループが動作</li>
+            <li>PC側のプロセス監視/制御は不可</li>
+            <li>音なし画面通知（PWA開いている時）</li>
+            <li>コスト: 最小限</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>モード B: PWA + PCエージェント</h3>
+          <p><strong>推奨用途：</strong>PC制御を行いたい場合</p>
+          <ul style="text-align:left">
+            <li>PC側のプロセス監視・制御・自動再起動</li>
+            <li>フェイルセーフ自動化（SAFE MODE）</li>
+            <li>リアルタイム CPU/Memory/ディスク監視</li>
+            <li>エージェントのオンライン/オフライン状態表示</li>
+            <li>Windows/macOS サービス自動起動</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Core Features -->
+    <section class="lp-section">
+      <h2>コア機能</h2>
+      <div class="lp-grid2">
+        <div class="card">
+          <h3>Input Gate</h3>
+          <p>入力テキスト・音声を分析</p>
+          <ul style="text-align:left">
+            <li>曖昧度スコア</li>
+            <li>感情圧力検出</li>
+            <li>非現実性判定</li>
+            <li>0.0～1.0 の数値化</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Output Gate</h3>
+          <p>LLM回答を自動検査</p>
+          <ul style="text-align:left">
+            <li>断定密度スコア</li>
+            <li>エビデンス不足検出</li>
+            <li>内部矛盾検査</li>
+            <li>品質スコア自動付与</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>自動制御ループ</h3>
+          <p>品質に基づく自動制御</p>
+          <ul style="text-align:left">
+            <li>スコア &lt;閾値: 自動再生成</li>
+            <li>60秒クールダウン</li>
+            <li>連続失敗3回で自動停止</li>
+            <li>アラート通知</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>監査ログ</h3>
+          <p>全セッション記録</p>
+          <ul style="text-align:left">
+            <li>入出力スコア</li>
+            <li>判定結果（verdict）</li>
+            <li>ユーザーフィードバック</li>
+            <li>API取得可能</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- API Endpoints -->
+    <section class="lp-section">
+      <h2>API エンドポイント</h2>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse">
+          <tr style="border-bottom:1px solid #ddd">
+            <th style="padding:8px;text-align:left">エンドポイント</th>
+            <th style="padding:8px;text-align:left">説明</th>
+          </tr>
+          <tr style="border-bottom:1px solid #ddd">
+            <td style="padding:8px"><code>POST /api/r3/chat</code></td>
+            <td style="padding:8px">チャット / 分析リクエスト</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ddd">
+            <td style="padding:8px"><code>POST /api/r3/analyze_input</code></td>
+            <td style="padding:8px">入力のみ分析</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ddd">
+            <td style="padding:8px"><code>POST /api/r3/analyze_output</code></td>
+            <td style="padding:8px">出力のみ分析</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ddd">
+            <td style="padding:8px"><code>GET /api/r3/config</code></td>
+            <td style="padding:8px">設定取得</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ddd">
+            <td style="padding:8px"><code>GET /api/status</code></td>
+            <td style="padding:8px">システムステータス（LLM設定等）</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ddd">
+            <td style="padding:8px"><code>GET /api/logs</code></td>
+            <td style="padding:8px">監査ログ取得</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ddd">
+            <td style="padding:8px"><code>GET /agent/pull</code></td>
+            <td style="padding:8px">エージェントコマンド取得（モードB）</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ddd">
+            <td style="padding:8px"><code>POST /agent/heartbeat</code></td>
+            <td style="padding:8px">エージェントハートビート（モードB）</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ddd">
+            <td style="padding:8px"><code>POST /agent/logs</code></td>
+            <td style="padding:8px">エージェントログ送信（モードB）</td>
+          </tr>
+        </table>
+      </div>
+    </section>
+
+    <section class="lp-section">
+      <h2>セキュリティ</h2>
+      <div class="lp-grid2">
+        <div class="card">
+          <h3>認証</h3>
+          <ul style="text-align:left">
+            <li>PWA: サーバーサイドセッション</li>
+            <li>API: X-API-Key ヘッダー</li>
+            <li>エージェント: X-AGENT-ID + X-API-Key</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>データ保護</h3>
+          <ul style="text-align:left">
+            <li>API鍵: サーバー側のみ（フロント非埋込）</li>
+            <li>Cookie: HttpOnly セッション</li>
+            <li>CORS: 同一オリジン</li>
+          </ul>
+        </div>
+      </div>
     </section>
   </main>
 </body>
