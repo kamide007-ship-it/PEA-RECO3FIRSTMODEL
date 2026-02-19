@@ -7,6 +7,9 @@ A Flask-based reasoning engine with dual LLM support (OpenAI GPT & Anthropic Cla
 ### Required Environment Variables
 
 - **`SECRET_KEY`** - Flask session secret (generate with `python -c "import secrets; print(secrets.token_hex(32))"`)
+  - **CRITICAL**: Required for PWA session authentication. Must be kept secret.
+  - Sessions expire on server restart (development mode) or periodically in production.
+  - If missing, defaults to dev key (UNSAFE for production).
 
 ### Optional API Keys
 
@@ -46,9 +49,23 @@ Control which AI model is used and how "auto" selection works:
     - `"anthropic_first"`: Prefers Claude
     - `"openai_first"`: Prefers OpenAI
 
+### PWA Session Authentication
+
+The `/r3` PWA interface uses server-side session authentication to protect `/api/r3/chat`:
+
+1. User accesses `/r3` → Server sets `session["r3"]=True` → Session cookie sent to browser
+2. Browser calls `/api/r3/chat` → Frontend sends cookie with `credentials: "include"` → Server validates session
+3. If session is invalid/expired → Server returns 401 → Frontend shows "セッション切れ。ページを再読み込みしてください。"
+
+**Important Notes:**
+- Session data is stored server-side (not in cookie value)
+- Session cookie is HttpOnly (cannot be accessed by JavaScript for security)
+- CORS is single-origin (Render deployment assumes same domain)
+- API keys are NOT embedded in frontend JavaScript
+
 ### API Key Protection Configuration
 
-Control authentication for API endpoints (PWA pages/static files are always public):
+Control authentication for other API endpoints (PWA pages/static files are always public):
 
 - **`API_KEY`** - The API key for protecting endpoints (required for enforce mode)
   - Generate with: `python -c "import secrets; print(secrets.token_hex(32))"`
@@ -99,7 +116,7 @@ gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --threads 4
 
 #### Example Environment Variables Setup
 
-**Complete Production Setup** (Claude with API protection):
+**Complete Production Setup** (Claude with PWA session + API protection):
 ```
 SECRET_KEY=<generate-with-python-secrets-module>
 API_KEY=<generate-with-python-secrets-module>
@@ -108,6 +125,15 @@ LLM_ADAPTER=anthropic
 ANTHROPIC_MODEL=claude-3-5-sonnet-latest
 API_KEY_MODE=enforce
 API_KEY_HEADER=X-API-Key
+```
+
+**Minimal Setup** (Session auth for PWA only):
+```
+SECRET_KEY=<generate-with-python-secrets-module>
+ANTHROPIC_API_KEY=sk-ant-...
+LLM_ADAPTER=anthropic
+ANTHROPIC_MODEL=claude-3-5-sonnet-latest
+API_KEY_MODE=off
 ```
 
 For **Anthropic Claude**:
@@ -242,12 +268,15 @@ Access at `http://localhost:5001`
 
 ## Security Notes
 
-- **Never** commit `API_KEY` or API keys to version control
+- **Never** commit `SECRET_KEY`, `API_KEY`, or API keys to version control
 - Use Render's **Environment Variables** to set these values
+- `SECRET_KEY` must be at least 32 characters (generate: `python -c "import secrets; print(secrets.token_hex(32))"`)
 - `API_KEY` should be a long random string (at least 32 characters)
 - In production, always set `API_KEY_MODE=enforce` (the default)
 - The `/r3` and `/static/*` paths are always public for PWA functionality
+- `/api/r3/chat` requires valid server session (set by visiting `/r3` with cookies enabled)
 - All other `/api/*` endpoints require a valid API key in enforce mode
+- PWA service worker does NOT cache `/api/*` endpoints (ensures fresh data)
 
 ## License
 

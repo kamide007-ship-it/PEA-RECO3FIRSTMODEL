@@ -2,7 +2,7 @@ let lastSession = null;
 let lastDomain = "general";
 
 async function api(path, method='GET', body=null){
-  const opt = {method, headers:{}};
+  const opt = {method, headers:{}, credentials: 'include'};
   if(body!==null){
     opt.headers['Content-Type'] = 'application/json';
     opt.body = JSON.stringify(body);
@@ -11,7 +11,13 @@ async function api(path, method='GET', body=null){
   const t = await r.text();
   let j = null;
   try{ j = JSON.parse(t); }catch(e){ j = {raw:t}; }
-  if(!r.ok) throw new Error(JSON.stringify(j));
+  if(!r.ok) {
+    if(r.status === 401) {
+      const msg = j.detail === 'session_expired' ? 'セッション切れ。ページを再読み込みしてください。' : '認証エラー: ' + (j.error || 'unauthorized');
+      showError(msg);
+    }
+    throw new Error(JSON.stringify(j));
+  }
   return j;
 }
 
@@ -22,6 +28,16 @@ function addMsg(role, text){
   d.textContent = text;
   chat.appendChild(d);
   chat.scrollTop = chat.scrollHeight;
+}
+
+function showError(msg){
+  const chat = document.getElementById('chat');
+  const d = document.createElement('div');
+  d.className = 'msg error';
+  d.textContent = '⚠️ ' + msg;
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+  console.error(msg);
 }
 
 function bar(name, v){
@@ -78,11 +94,15 @@ async function doSend(){
   const p = document.getElementById('prompt').value;
   const domain = document.getElementById('domain').value || 'general';
   addMsg('user', p);
-  const res = await api('/api/r3/chat', 'POST', {prompt: p, domain});
-  addMsg('assistant', res.response || '');
-  showInputAnalysis(res.input_analysis);
-  showOutputAnalysis(res.output_analysis);
-  showDetail(res);
+  try {
+    const res = await api('/api/r3/chat', 'POST', {prompt: p, domain});
+    addMsg('assistant', res.response || '');
+    showInputAnalysis(res.input_analysis);
+    showOutputAnalysis(res.output_analysis);
+    showDetail(res);
+  } catch(e) {
+    console.error('Error:', e);
+  }
 }
 
 async function doFb(kind){
@@ -93,8 +113,12 @@ async function doFb(kind){
     bad: "ごめんね。なおすね。"
   };
   addMsg('user', map[kind] || kind);
-  const res = await api('/api/feedback', 'POST', {session_id: lastSession, domain: lastDomain, feedback: kind});
-  addMsg('assistant', JSON.stringify(res));
+  try {
+    const res = await api('/api/feedback', 'POST', {session_id: lastSession, domain: lastDomain, feedback: kind});
+    addMsg('assistant', JSON.stringify(res));
+  } catch(e) {
+    console.error('Error:', e);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', ()=>{
