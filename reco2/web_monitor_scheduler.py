@@ -3,12 +3,17 @@ Web monitoring scheduler: Periodic HTTP checks for monitored targets.
 Creates observations and incidents from health check results.
 """
 
-import requests
 import logging
 import threading
 import time
 from datetime import datetime
 from typing import List, Dict, Any, Optional
+
+try:
+    import requests
+except ImportError:
+    requests = None
+
 from reco2.db import WebTargets, Observations, Incidents
 
 logger = logging.getLogger(__name__)
@@ -220,7 +225,10 @@ def get_scheduler() -> WebMonitorScheduler:
 
 
 def start_monitoring():
-    """Start web monitoring."""
+    """Start web monitoring. Skips gracefully if requests is unavailable."""
+    if requests is None:
+        logger.warning("requests package not installed – web monitoring disabled")
+        return
     get_scheduler()
 
 
