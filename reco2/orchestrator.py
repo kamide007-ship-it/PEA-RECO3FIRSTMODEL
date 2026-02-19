@@ -149,9 +149,31 @@ _instance: Optional[Orchestrator] = None
 def get_orchestrator() -> Orchestrator:
     global _instance
     if _instance is None:
+        import os
         cfg = load_config()
-        adapter_name = cfg.get("llm_adapter", "auto")
-        model = cfg.get("llm_model", "") or None
+
+        # Priority: ENV > config.json > default
+        adapter_name = os.getenv("LLM_ADAPTER") or cfg.get("llm_adapter", "auto")
+
+        # Resolve "auto" to actual adapter
+        from reco2.llm_adapter import _resolve_auto
+        if adapter_name == "auto":
+            adapter_name = _resolve_auto()
+
+        # Select model based on adapter type
+        model = None
+        adapter_lower = (adapter_name or "dummy").strip().lower()
+
+        if adapter_lower in ("openai", "gpt"):
+            # OpenAI: ENV(OPENAI_MODEL) > config.json > "gpt-4o"
+            model = os.getenv("OPENAI_MODEL") or cfg.get("llm_model") or "gpt-4o"
+        elif adapter_lower in ("claude", "anthropic"):
+            # Claude: ENV(ANTHROPIC_MODEL) > config.json > "claude-sonnet-4-5-20250929"
+            model = os.getenv("ANTHROPIC_MODEL") or cfg.get("llm_model") or "claude-sonnet-4-5-20250929"
+        else:
+            # Dummy or others: use config.json or None
+            model = cfg.get("llm_model") or None
+
         kw = {"model": model} if model else {}
         llm = create_adapter(adapter_name, **kw)
         _instance = Orchestrator(llm=llm)
