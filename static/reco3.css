@@ -1,12 +1,18 @@
-.chat{border:1px solid rgba(255,255,255,.10); border-radius:16px; background:rgba(0,0,0,.25); padding:10px; height:260px; overflow:auto; display:flex; flex-direction:column; gap:10px;}
-.msg{padding:10px 12px; border-radius:16px; border:1px solid rgba(255,255,255,.10); background:rgba(255,255,255,.06);}
-.msg.user{align-self:flex-end; background:rgba(59,130,246,.10);}
-.msg.assistant{align-self:flex-start; background:rgba(139,92,246,.10);}
-.msg.error{background:rgba(239,68,68,.15); border-color:rgba(239,68,68,.30);}
-.kv{display:grid; grid-template-columns:160px 1fr; gap:8px; font-size:13px;}
-.kv .k{color:var(--muted);}
-.autoStatus{display:flex; gap:8px; flex-wrap:wrap; font-size:12px;}
-.badge{display:inline-block; padding:4px 8px; border-radius:8px; background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.20); white-space:nowrap;}
-.badge.on{background:rgba(34,197,94,.15); border-color:rgba(34,197,94,.40);}
-.badge.off{background:rgba(107,114,128,.15); border-color:rgba(107,114,128,.40);}
-.badge.fail{background:rgba(239,68,68,.15); border-color:rgba(239,68,68,.30); color:#ef4444;}
+.chat{border:1px solid var(--border);border-radius:8px;background:var(--bg);padding:10px;height:260px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.msg{padding:8px 12px;border-radius:8px;font-size:14px;line-height:1.5;max-width:85%}
+.msg.user{align-self:flex-end;background:var(--primary);color:var(--white)}
+.msg.assistant{align-self:flex-start;background:var(--white);border:1px solid var(--border);color:var(--text)}
+.msg.error{background:#FEF2F2;border:1px solid #FECACA;color:#DC2626}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px;font-size:13px}
+.kv .k{color:var(--muted)}
+.autoStatus{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px}
+.autoStatus .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.autoStatus .dot.on{background:var(--primary)}
+.autoStatus .dot.off{background:#9CA3AF}
+.autoStatus .dot.safe{background:#DC2626}
+.autoStatus span{color:var(--muted)}
+.barRow{margin:4px 0}
+.barLabel{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:2px}
+.bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.bar .fill{height:100%;background:var(--primary);border-radius:3px}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;color:var(--muted);background:var(--bg);border:1px solid var(--border)}

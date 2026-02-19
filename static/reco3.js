@@ -132,15 +132,10 @@ function autoStop(){
 function updateAutoMonitorUI(){
   const el = document.getElementById('autoMonitor');
   if(!el) return;
-  el.innerHTML = `
-    <div class="autoStatus">
-      <span class="badge ${autoRunning ? 'on' : 'off'}">Auto: ${autoRunning ? 'ON' : 'OFF'}</span>
-      <span class="badge">Status: ${lastStatusTime || '--'}</span>
-      <span class="badge">Logs: ${lastLogsTime || '--'}</span>
-      <span class="badge">Action: ${lastAction}</span>
-      <span class="badge fail" style="${failureCount > 0 ? '' : 'display:none'}">Fail: ${failureCount}</span>
-    </div>
-  `;
+  const dotClass = lastAction.startsWith('SAFE') ? 'safe' : (autoRunning ? 'on' : 'off');
+  const label = autoRunning ? 'Auto' : 'Off';
+  const extra = failureCount > 0 ? ` <span style="color:#DC2626">F${failureCount}</span>` : '';
+  el.innerHTML = `<div class="autoStatus"><span class="dot ${dotClass}"></span><span>${label}</span>${extra}</div>`;
 }
 
 async function api(path, method='GET', body=null){
