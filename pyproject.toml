@@ -1,0 +1,10 @@
+[project]
+name = "reco3"
+version = "3.0.0"
+description = "AI Integrity Control Layer"
+requires-python = ">=3.9"
+dependencies = ["flask>=3.0"]
+
+[project.scripts]
+reco3-app = "app:main"
+reco3-agent = "reco3_agent.cli:main"

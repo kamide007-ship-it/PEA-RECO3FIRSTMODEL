@@ -1,0 +1,265 @@
+{
+  "k": 1.5,
+  "eta": 0.0102,
+  "T_base": 0.8,
+  "k_min": 0.5,
+  "k_max": 5.0,
+  "eta_min": 0.001,
+  "eta_max": 0.1,
+  "total_sessions": 22,
+  "domains": {
+    "general": 1.01,
+    "x": 1.01
+  },
+  "used_session_ids": {
+    "46f79dff-4505-476b-9c74-267cfa405418": "2026-02-11T07:56:08+00:00",
+    "8f385072-5fec-46e5-9a6b-1ca9ef26a60e": "2026-02-11T07:56:09+00:00"
+  },
+  "session_logs": [
+    {
+      "session_id": "de28e339-d4ac-410d-bdb7-327ea95be053",
+      "ts": "2026-02-11T07:56:08+00:00",
+      "domain": "general",
+      "D": 0.1,
+      "T": 0.688566,
+      "psi": 1.043037,
+      "verdict": "moderate",
+      "reward": null,
+      "feedback": null
+    },
+    {
+      "session_id": "46f79dff-4505-476b-9c74-267cfa405418",
+      "ts": "2026-02-11T07:56:08+00:00",
+      "domain": "general",
+      "D": 0.1,
+      "T": 0.688566,
+      "psi": 1.043037,
+      "verdict": "moderate",
+      "reward": 1.0,
+      "feedback": "good"
+    },
+    {
+      "session_id": "8eb7c132-a257-474b-9c17-1397419548a9",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "general",
+      "D": 0.0,
+      "T": 0.8,
+      "psi": 0.89775,
+      "verdict": "moderate",
+      "reward": null,
+      "feedback": null
+    },
+    {
+      "session_id": "5f6bfca1-73d7-4208-aebb-af7801942fa3",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "general",
+      "D": 0.1,
+      "T": 0.688566,
+      "psi": 1.347728,
+      "verdict": "reliable",
+      "reward": null,
+      "feedback": null
+    },
+    {
+      "session_id": "8f385072-5fec-46e5-9a6b-1ca9ef26a60e",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "x",
+      "D": 0.1,
+      "T": 0.688566,
+      "psi": 1.043037,
+      "verdict": "moderate",
+      "reward": 1.0,
+      "feedback": "good"
+    },
+    {
+      "session_id": "dbd6db5b-fa6f-4244-90c5-88dfb90e4430",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "y",
+      "D": 10.0,
+      "T": 0.1,
+      "psi": 5.0,
+      "verdict": "reliable",
+      "reward": null,
+      "feedback": null
+    },
+    {
+      "session_id": "3da7f80a-f04e-42fd-aad1-fcc95a13d2c8",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "y",
+      "D": 10.0,
+      "T": 0.1,
+      "psi": 5.0,
+      "verdict": "reliable",
+      "reward": null,
+      "feedback": null
+    },
+    {
+      "session_id": "df1c1f4c-5621-40c7-b2ab-f1d0896b7e99",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "y",
+      "D": 10.0,
+      "T": 0.1,
+      "psi": 5.0,
+      "verdict": "reliable",
+      "reward": null,
+      "feedback": null
+    },
+    {
+      "session_id": "97a6ae9a-c09b-42b8-95c9-7ccb68bed91c",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "y",
+      "D": 10.0,
+      "T": 0.1,
+      "psi": 5.0,
+      "verdict": "reliable",
+      "reward": null,
+      "feedback": null
+    },
+    {
+      "session_id": "ae5fe386-b380-480f-8c89-6b5cd1d32533",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "y",
+      "D": 10.0,
+      "T": 0.1,
+      "psi": 5.0,
+      "verdict": "reliable",
+      "reward": null,
+      "feedback": null
+    },
+    {
+      "session_id": "2337373d-d936-4327-b8bd-d3d46a580add",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "y",
+      "D": 10.0,
+      "T": 0.1,
+      "psi": 5.0,
+      "verdict": "reliable",
+      "reward": null,
+      "feedback": null
+    },
+    {
+      "session_id": "4118048c-e3da-41a1-8158-9c7a91101936",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "y",
+      "D": 10.0,
+      "T": 0.1,
+      "psi": 5.0,
+      "verdict": "reliable",
+      "reward": null,
+      "feedback": null
+    },
+    {
+      "session_id": "e11dea00-f4de-425e-8dd2-82d2c57f9adb",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "y",
+      "D": 10.0,
+      "T": 0.1,
+      "psi": 5.0,
+      "verdict": "reliable",
+      "reward": null,
+      "feedback": null
+    },
+    {
+      "session_id": "e40f1c23-89aa-4b83-862b-62bb41c96c48",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "y",
+      "D": 10.0,
+      "T": 0.1,
+      "psi": 5.0,
+      "verdict": "reliable",
+      "reward": null,
+      "feedback": null
+    },
+    {
+      "session_id": "e6776f0b-02ba-40b3-88b1-31b640a5d0fb",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "y",
+      "D": 10.0,
+      "T": 0.1,
+      "psi": 5.0,
+      "verdict": "reliable",
+      "reward": null,
+      "feedback": null
+    },
+    {
+      "session_id": "f18cde94-5857-47b7-a725-f2cbcf0e9a4b",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "y",
+      "D": 10.0,
+      "T": 0.1,
+      "psi": 5.0,
+      "verdict": "reliable",
+      "reward": null,
+      "feedback": null
+    },
+    {
+      "session_id": "4140fb4f-87f6-4352-b7a2-2d008667ab99",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "y",
+      "D": 10.0,
+      "T": 0.1,
+      "psi": 5.0,
+      "verdict": "reliable",
+      "reward": null,
+      "feedback": null
+    },
+    {
+      "session_id": "cafeef92-2206-48f1-a6aa-0cb1ad8f7c28",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "general",
+      "D": 0.0,
+      "T": 0.8,
+      "psi": 0.89775,
+      "verdict": "moderate",
+      "reward": null,
+      "feedback": null
+    },
+    {
+      "session_id": "c65210de-6ba2-430e-bc64-be6c672ef015",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "general",
+      "D": 0.0,
+      "T": 0.8,
+      "psi": 0.89775,
+      "verdict": "moderate",
+      "reward": null,
+      "feedback": null
+    },
+    {
+      "session_id": "b96d5ec4-cb54-4467-b28f-39cfa4faeab0",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "general",
+      "D": 0.0,
+      "T": 0.8,
+      "psi": 0.89775,
+      "verdict": "moderate",
+      "reward": null,
+      "feedback": null
+    },
+    {
+      "session_id": "eb825126-f759-478b-854b-ec717fc04fb9",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "general",
+      "D": 0.0,
+      "T": 0.8,
+      "psi": 0.89775,
+      "verdict": "moderate",
+      "reward": null,
+      "feedback": null
+    },
+    {
+      "session_id": "8256d26b-45fc-4253-a6ae-bd154d737b01",
+      "ts": "2026-02-11T07:56:09+00:00",
+      "domain": "general",
+      "D": 0.0,
+      "T": 0.8,
+      "psi": 0.89775,
+      "verdict": "moderate",
+      "reward": null,
+      "feedback": null
+    }
+  ],
+  "last_patrol_at_sessions": 0,
+  "created_at": "2026-02-11T07:56:08+00:00",
+  "updated_at": "2026-02-11T07:56:09+00:00"
+}

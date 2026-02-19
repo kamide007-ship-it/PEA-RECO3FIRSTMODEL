@@ -1,0 +1,106 @@
+openapi: 3.1.0
+info:
+  title: RECO3 AI Integrity Control Layer
+  version: 3.0.0
+servers:
+  - url: http://localhost:5001
+security:
+  - ApiKeyAuth: []
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+paths:
+  /api/evaluate:
+    post:
+      summary: Evaluate payload (RECO2)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  /api/feedback:
+    post:
+      summary: Record feedback (RECO2)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  /api/patrol:
+    post:
+      summary: Run patrol (RECO2)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: OK }
+  /api/status:
+    get:
+      summary: Get status (RECO2)
+      responses:
+        "200": { description: OK }
+  /api/logs:
+    get:
+      summary: Get logs (RECO2)
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50 }
+      responses:
+        "200": { description: OK }
+  /api/r3/chat:
+    post:
+      summary: RECO3 chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prompt: { type: string }
+                domain: { type: string }
+                max_tokens: { type: integer, default: 1024 }
+                context: { type: object }
+      responses:
+        "200": { description: OK }
+  /api/r3/analyze_input:
+    post:
+      summary: Analyze input text
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/r3/analyze_output:
+    post:
+      summary: Analyze output text
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/r3/config:
+    get:
+      summary: Get config (api_keys masked)
+      responses:
+        "200": { description: OK }

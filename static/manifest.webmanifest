@@ -1,0 +1,21 @@
+{
+  "name": "RECO3",
+  "short_name": "RECO3",
+  "start_url": "/r3?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7e9ef",
+  "theme_color": "#f7e9ef",
+  "icons": [
+    {
+      "src": "/static/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
