@@ -149,7 +149,17 @@ def api_r3_config():
     return jsonify(public_config(load_config()))
 
 def main():
+    import os
     cfg = load_config()
+
+    # Initialize orchestrator and log LLM configuration
+    orch = get_orchestrator()
+    adapter = orch.get_active_adapter()
+    model = orch.get_active_model()
+    has_openai = bool(os.environ.get("OPENAI_API_KEY"))
+    has_anthropic = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    log.info(f"LLM Configuration: adapter={adapter}, model={model}, has_openai_key={has_openai}, has_anthropic_key={has_anthropic}")
+
     app.run(host=cfg.get("host", "0.0.0.0"), port=int(cfg.get("port", 5001)), debug=bool(cfg.get("debug", False)))
 
 if __name__ == "__main__":

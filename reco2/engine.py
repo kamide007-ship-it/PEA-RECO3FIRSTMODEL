@@ -247,6 +247,7 @@ def patrol(manual: bool = True) -> Dict[str, Any]:
     }
 
 def get_status() -> Dict[str, Any]:
+    import os
     state = load_state()
     logs = state.get("session_logs", [])
     avgD = 0.0
@@ -269,6 +270,24 @@ def get_status() -> Dict[str, Any]:
         for d, w in dom.items():
             domains.append({"domain": d, "weight": float(w)})
     domains.sort(key=lambda x: (-x["weight"], x["domain"]))
+
+    # Get active LLM adapter and model info
+    from reco2.orchestrator import get_orchestrator
+    try:
+        orch = get_orchestrator()
+        active_adapter = orch.get_active_adapter()
+        active_model = orch.get_active_model()
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Failed to get orchestrator info: {e}")
+        active_adapter = "unknown"
+        active_model = "unknown"
+
+    # Check API key availability (without exposing the keys)
+    dual_keys = {
+        "has_openai_key": bool(os.environ.get("OPENAI_API_KEY")),
+        "has_anthropic_key": bool(os.environ.get("ANTHROPIC_API_KEY")),
+    }
+
     return {
         "k": float(state.get("k", 1.5)), "eta": float(state.get("eta", 0.01)),
         "total_sessions": total_sessions, "avg_deviation": round(avgD, 6),
@@ -277,7 +296,10 @@ def get_status() -> Dict[str, Any]:
         "ranges": {
             "k": [float(state.get("k_min", 0.5)), float(state.get("k_max", 5.0))],
             "eta": [float(state.get("eta_min", 0.001)), float(state.get("eta_max", 0.1))],
-        }
+        },
+        "active_llm_adapter": active_adapter,
+        "active_llm_model": active_model,
+        "dual_keys": dual_keys,
     }
 
 def get_logs(limit: int = 50) -> List[Dict[str, Any]]:

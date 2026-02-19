@@ -13,9 +13,21 @@ class Orchestrator:
 
     def __init__(self, llm: Optional[BaseLLMAdapter] = None):
         self._llm = llm or create_adapter("dummy")
+        self._active_adapter = self._llm.name
+        self._active_model = getattr(self._llm, "model", "unknown")
 
     def set_llm(self, llm: BaseLLMAdapter) -> None:
         self._llm = llm
+        self._active_adapter = self._llm.name
+        self._active_model = getattr(self._llm, "model", "unknown")
+
+    def get_active_adapter(self) -> str:
+        """Currently active LLM adapter name"""
+        return self._active_adapter
+
+    def get_active_model(self) -> str:
+        """Currently active LLM model name"""
+        return self._active_model
 
     def _cool_down_result(self, in_analysis: Dict[str, Any]) -> Dict[str, Any]:
         warns = in_analysis.get("warnings") or []
