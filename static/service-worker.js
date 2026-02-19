@@ -1,4 +1,4 @@
-const CACHE_VERSION = "reco3-pwa-v6";
+const CACHE_VERSION = "reco3-pwa-v7";
 const APP_SHELL = [
   "/r3",
   "/manifest.webmanifest",

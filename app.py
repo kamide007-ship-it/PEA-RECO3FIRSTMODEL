@@ -8,6 +8,7 @@ from reco2.store import ensure_state_file
 from reco2.orchestrator import get_orchestrator
 from reco2.config import load_config, public_config
 from reco2 import input_gate, output_gate
+from reco2.system_monitor import get_system_metrics, get_top_processes, evaluate_system_health, get_algorithm_status, control_algorithm, register_algorithm
 
 logging.basicConfig(level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -97,7 +98,7 @@ def check_api_key():
 
     # PWA session auth: if user visited /r3 and has valid session, allow
     # /api/r3/*, /api/status, /api/logs, /api/feedback (needed by auto-monitor and PWA)
-    _pwa_paths = ("/api/r3/", "/api/status", "/api/logs", "/api/feedback")
+    _pwa_paths = ("/api/r3/", "/api/status", "/api/logs", "/api/feedback", "/api/system")
     if session.get("r3") and request.path.startswith(_pwa_paths):
         return
 
@@ -275,6 +276,33 @@ def api_r3_analyze_output():
 @require_api_key
 def api_r3_config():
     return jsonify(public_config(load_config()))
+
+# ── System Monitor Routes ─────────────────────────────────────────
+
+@app.get("/api/system")
+@require_api_key
+def api_system():
+    metrics = get_system_metrics()
+    health = evaluate_system_health(metrics)
+    return jsonify({"metrics": metrics, "health": health})
+
+@app.get("/api/system/processes")
+@require_api_key
+def api_system_processes():
+    top_n = int(request.args.get("top", "10"))
+    return jsonify(get_top_processes(top_n=top_n))
+
+@app.get("/api/system/algorithms")
+@require_api_key
+def api_system_algorithms():
+    return jsonify(get_algorithm_status())
+
+@app.post("/api/system/algorithms/<name>")
+@require_api_key
+def api_system_algorithm_control(name):
+    data = request.get_json(force=True, silent=True) or {}
+    action = str(data.get("action", "status"))
+    return jsonify(control_algorithm(name, action))
 
 def main():
     cfg = load_config()
