@@ -11,6 +11,7 @@ from reco2 import input_gate, output_gate
 from reco2.system_monitor import get_system_metrics, get_top_processes, evaluate_system_health, get_algorithm_status, control_algorithm, register_algorithm
 from reco2.db import init_db, WebTargets, Observations, Incidents, Suggestions, Feedback, AuditLog
 from reco2.web_monitor_scheduler import start_monitoring, stop_monitoring
+from reco2.suggestion_engine import generate_suggestions_for_incident
 
 logging.basicConfig(level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -431,6 +432,130 @@ def api_get_incident(incident_id):
         return jsonify({"incident": incident, "suggestions": suggestions})
     except Exception as e:
         log.error(f"Error getting incident: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.post("/api/incidents/<incident_id>/suggestions")
+@require_api_key
+def api_generate_suggestions(incident_id):
+    """Generate suggestions for incident (rule-based and AI)."""
+    try:
+        incident = Incidents.get_by_id(incident_id)
+        if not incident:
+            return jsonify({"error": "not_found"}), 404
+
+        org_id = incident.get("org_id", "default")
+        include_ai = request.args.get("ai", "true").lower() == "true"
+
+        count = generate_suggestions_for_incident(
+            incident,
+            org_id=org_id,
+            include_ai=include_ai,
+        )
+
+        AuditLog.log(
+            actor="system:api",
+            event_type="generate_suggestions",
+            ref_id=incident_id,
+            payload={"count": count, "include_ai": include_ai},
+            org_id=org_id,
+        )
+
+        return jsonify({"status": "generated", "count": count})
+    except Exception as e:
+        log.error(f"Error generating suggestions: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.get("/api/suggestions/<suggestion_id>")
+@require_api_key
+def api_get_suggestion(suggestion_id):
+    """Get suggestion details with feedback."""
+    try:
+        suggestion = Suggestions.get_by_id(suggestion_id)
+        if not suggestion:
+            return jsonify({"error": "not_found"}), 404
+
+        feedback_list = Feedback.list_by_suggestion(suggestion_id)
+
+        # Calculate feedback statistics
+        good_count = sum(1 for f in feedback_list if f.get("vote") == "good")
+        bad_count = sum(1 for f in feedback_list if f.get("vote") == "bad")
+        total_feedback = len(feedback_list)
+        good_ratio = good_count / total_feedback if total_feedback > 0 else 0.0
+
+        return jsonify({
+            "suggestion": suggestion,
+            "feedback": feedback_list,
+            "feedback_stats": {
+                "total": total_feedback,
+                "good": good_count,
+                "bad": bad_count,
+                "good_ratio": good_ratio,
+            }
+        })
+    except Exception as e:
+        log.error(f"Error getting suggestion: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.post("/api/feedback")
+@require_api_key
+def api_submit_feedback():
+    """Submit Good/Bad feedback on suggestion."""
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        suggestion_id = data.get("suggestion_id")
+        vote = data.get("vote", "").lower()
+        comment = data.get("comment", "")
+        user_id = data.get("user_id", None)
+
+        if not suggestion_id or vote not in ("good", "bad"):
+            return jsonify({"error": "invalid_parameters"}), 400
+
+        suggestion = Suggestions.get_by_id(suggestion_id)
+        if not suggestion:
+            return jsonify({"error": "suggestion_not_found"}), 404
+
+        org_id = suggestion.get("org_id", "default")
+
+        # Create feedback
+        fb_id = Feedback.create(
+            suggestion_id=suggestion_id,
+            vote=vote,
+            user_id=user_id or "anonymous",
+            comment=comment,
+            org_id=org_id,
+        )
+
+        # Log to audit trail
+        AuditLog.log(
+            actor=f"user:{user_id}" if user_id else "system:anonymous",
+            event_type="feedback_submitted",
+            ref_id=suggestion_id,
+            payload={"vote": vote, "comment": comment},
+            org_id=org_id,
+        )
+
+        return jsonify({"id": fb_id, "status": "recorded"})
+    except Exception as e:
+        log.error(f"Error submitting feedback: {e}")
+        return jsonify({"error": str(e)}), 400
+
+@app.get("/api/feedback/stats")
+@require_api_key
+def api_feedback_stats():
+    """Get feedback aggregation statistics (for learning)."""
+    try:
+        org_id = request.args.get("org_id", "default")
+        period_days = int(request.args.get("period_days", 7))
+
+        stats = Feedback.aggregate_by_type(org_id=org_id, period_days=period_days)
+
+        return jsonify({
+            "period_days": period_days,
+            "org_id": org_id,
+            "by_type": stats,
+        })
+    except Exception as e:
+        log.error(f"Error getting feedback stats: {e}")
         return jsonify({"error": str(e)}), 500
 
 def main():
