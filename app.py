@@ -130,6 +130,18 @@ def page_r3():
     session["r3"] = True
     return render_template("reco3.html")
 
+@app.get("/b2b")
+def page_b2b():
+    return render_template("b2b.html")
+
+@app.get("/spec")
+def page_spec():
+    return render_template("spec.html")
+
+@app.get("/tech")
+def page_tech():
+    return render_template("tech.html")
+
 # ── PWA Assets (Root-level for Service Worker scope) ────────────────
 
 @app.get("/manifest.webmanifest")

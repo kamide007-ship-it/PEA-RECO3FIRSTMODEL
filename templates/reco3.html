@@ -12,11 +12,16 @@
 <body>
   <main class="wrap">
     <header class="top">
-      <div>
-        <h1>RECO3</h1>
-        <p class="muted">Input Gate / LLM / Output Gate / RECO2</p>
+      <div style="display:flex;align-items:center;gap:12px">
+        <a href="/b2b"><img src="/static/reco-logo.svg" alt="RECO" height="20" /></a>
+        <div id="autoMonitor"></div>
       </div>
-      <div id="autoMonitor"></div>
+      <nav class="nav" style="font-size:13px">
+        <a href="/r3" class="btn" style="border-bottom:2px solid var(--primary)">Dashboard</a>
+        <a href="/b2b" class="btn">B2B</a>
+        <a href="/spec" class="btn">Spec</a>
+        <a href="/tech" class="btn">Tech</a>
+      </nav>
     </header>
 
     <section class="card">
