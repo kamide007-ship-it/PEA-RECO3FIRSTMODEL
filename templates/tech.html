@@ -23,7 +23,191 @@
   <main class="lp-wrap">
     <section class="lp-hero" style="padding:48px 0">
       <h1>技術仕様書</h1>
-      <p class="lp-sub">準備中です。</p>
+      <p class="lp-sub">RECO3 の技術アーキテクチャと実装詳細</p>
+    </section>
+
+    <!-- Architecture -->
+    <section class="lp-section">
+      <h2>アーキテクチャ</h2>
+      <div class="card">
+        <h3>3階層構成</h3>
+        <div style="text-align:left;margin-top:16px">
+          <p><strong>1. PWA Frontend (/r3)</strong></p>
+          <ul>
+            <li>Vue.js / React ベース監視ダッシュボード</li>
+            <li>Service Worker オフライン対応</li>
+            <li>リアルタイム チャートレンダリング</li>
+            <li>セッションCookie認証</li>
+          </ul>
+          <p style="margin-top:16px"><strong>2. Flask Backend API</strong></p>
+          <ul>
+            <li>/api/r3/* — PWA用チャット/分析エンドポイント</li>
+            <li>/api/status — LLM設定・ステータス</li>
+            <li>/api/logs — 監査ログ取得</li>
+            <li>/agent/* — PCエージェント通信（オプション）</li>
+          </ul>
+          <p style="margin-top:16px"><strong>3. PCエージェント (オプション)</strong></p>
+          <ul>
+            <li>Windows Service / macOS launchd で常駐</li>
+            <li>10秒周期で heartbeat/pull/logs を実行</li>
+            <li>システムメトリクス収集・プロセス制御</li>
+            <li>コマンド allowlist ベース実行</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Deployment Modes -->
+    <section class="lp-section">
+      <h2>デプロイメントモード 詳細</h2>
+
+      <h3 style="margin-top:24px">モード A: PWAのみ</h3>
+      <div class="card">
+        <p><strong>構成:</strong> Render (Flask) + Browser (PWA)</p>
+        <p><strong>必須環境変数:</strong></p>
+        <pre style="background:#f5f5f5;padding:12px;border-radius:4px;overflow-x:auto"><code>SECRET_KEY=<generated_secret>
+ANTHROPIC_API_KEY=sk-ant-...
+LLM_ADAPTER=anthropic
+API_KEY_MODE=off  # PWAのみの場合</code></pre>
+        <p style="margin-top:12px"><strong>動作フロー:</strong></p>
+        <ol style="text-align:left">
+          <li>ユーザーが /r3 にアクセス → セッションCookie発行</li>
+          <li>チャット入力 → /api/r3/chat (セッション認証)</li>
+          <li>Input Gate スコア計算 → LLM呼び出し</li>
+          <li>Output Gate スコア計算 → 結果表示</li>
+          <li>スコア &lt; 閾値なら自動再生成</li>
+        </ol>
+        <p style="margin-top:12px"><strong>制限事項:</strong></p>
+        <ul>
+          <li>PC側のプロセス監視 不可</li>
+          <li>オンライン時のみ動作</li>
+        </ul>
+      </div>
+
+      <h3 style="margin-top:24px">モード B: PWA + PCエージェント</h3>
+      <div class="card">
+        <p><strong>構成:</strong> Render (Flask) + Browser (PWA) + Windows/macOS (Agent Service)</p>
+        <p><strong>追加環境変数:</strong></p>
+        <pre style="background:#f5f5f5;padding:12px;border-radius:4px;overflow-x:auto"><code>API_KEY=<generated_key>
+API_KEY_MODE=enforce  # エージェント認証必須</code></pre>
+        <p style="margin-top:12px"><strong>エージェント動作フロー (10秒周期):</strong></p>
+        <ol style="text-align:left">
+          <li>heartbeat → サーバーに CPU/Memory/Disk/Network送信</li>
+          <li>logs → プロセスエラーログ抽出・送信</li>
+          <li>pull → サーバーのコマンドキュー取得</li>
+          <li>command実行 → allowlist のみ (SET_MODE, RESTART_PROCESS, SET_RATE_LIMIT)</li>
+        </ol>
+        <p style="margin-top:12px"><strong>自動制御ルール:</strong></p>
+        <ul>
+          <li>error_rate > 3% (5分) → SET_MODE SAFE</li>
+          <li>NaN/inf 検出 → SET_MODE SAFE</li>
+          <li>CPU > 95% (2分) → SET_RATE_LIMIT 0.2</li>
+          <li>crash ≥ 2 → RESTART_PROCESS</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- LLM Configuration -->
+    <section class="lp-section">
+      <h2>LLMアダプタ設定</h2>
+      <div class="lp-grid2">
+        <div class="card">
+          <h3>OpenAI GPT</h3>
+          <pre style="background:#f5f5f5;padding:8px;border-radius:4px;font-size:12px"><code>LLM_ADAPTER=openai
+OPENAI_MODEL=gpt-4o
+OPENAI_API_KEY=sk-...</code></pre>
+        </div>
+        <div class="card">
+          <h3>Anthropic Claude</h3>
+          <pre style="background:#f5f5f5;padding:8px;border-radius:4px;font-size:12px"><code>LLM_ADAPTER=anthropic
+ANTHROPIC_MODEL=claude-3-5-sonnet-latest
+ANTHROPIC_API_KEY=sk-ant-...</code></pre>
+        </div>
+        <div class="card">
+          <h3>Auto Selection</h3>
+          <pre style="background:#f5f5f5;padding:8px;border-radius:4px;font-size:12px"><code>LLM_ADAPTER=auto
+AUTO_PREFERENCE=anthropic_first
+# 両方のキーがあればそちらが優先</code></pre>
+        </div>
+        <div class="card">
+          <h3>Test Mode (No API Key)</h3>
+          <pre style="background:#f5f5f5;padding:8px;border-radius:4px;font-size:12px"><code>LLM_ADAPTER=dummy
+# ランダムスコアで動作（開発用）</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Agent Installation -->
+    <section class="lp-section">
+      <h2>PCエージェント インストール (モード B)</h2>
+
+      <h3 style="margin-top:24px">Windows</h3>
+      <div class="card">
+        <pre style="background:#f5f5f5;padding:12px;border-radius:4px;overflow-x:auto;font-size:12px"><code># PowerShell (管理者権限)
+cd agent/windows
+.\install_service.ps1 -ServerUrl "https://YOUR-RENDER.onrender.com" -ApiKey "YOUR-API-KEY" -AgentId "pc-001"</code></pre>
+        <p style="margin-top:12px;font-size:14px"><strong>動作確認:</strong></p>
+        <pre style="background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:12px"><code>Get-Service "RECO3-Agent" | Start-Service</code></pre>
+        <p style="margin-top:12px;font-size:14px"><strong>アンインストール:</strong></p>
+        <pre style="background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:12px"><code>.\uninstall_service.ps1</code></pre>
+      </div>
+
+      <h3 style="margin-top:24px">macOS</h3>
+      <div class="card">
+        <pre style="background:#f5f5f5;padding:12px;border-radius:4px;overflow-x:auto;font-size:12px"><code># Bash
+cd agent/macos
+chmod +x install_launchd.sh
+./install_launchd.sh -u YOUR-USERNAME -k YOUR-API-KEY</code></pre>
+        <p style="margin-top:12px;font-size:14px"><strong>動作確認:</strong></p>
+        <pre style="background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:12px"><code>launchctl list | grep reco3.agent</code></pre>
+        <p style="margin-top:12px;font-size:14px"><strong>ログ確認:</strong></p>
+        <pre style="background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:12px"><code>tail -f ~/.reco3/agent.log</code></pre>
+      </div>
+    </section>
+
+    <!-- Database Schema -->
+    <section class="lp-section">
+      <h2>データベース (SQLite)</h2>
+      <div class="card">
+        <p><strong>agent_status テーブル (モード B)</strong></p>
+        <pre style="background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:11px"><code>agent_id TEXT PRIMARY KEY
+last_seen TIMESTAMP
+status TEXT (ONLINE/OFFLINE)
+cpu_percent FLOAT
+memory_mb INT
+disk_percent FLOAT</code></pre>
+
+        <p style="margin-top:12px"><strong>agent_logs テーブル (モード B)</strong></p>
+        <pre style="background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:11px"><code>id INTEGER PRIMARY KEY
+agent_id TEXT
+timestamp TIMESTAMP
+level TEXT (ERROR/WARN/INFO)
+code TEXT
+message TEXT
+metadata JSON</code></pre>
+
+        <p style="margin-top:12px"><strong>agent_commands テーブル (モード B)</strong></p>
+        <pre style="background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:11px"><code>id INTEGER PRIMARY KEY
+agent_id TEXT
+timestamp TIMESTAMP
+command_type TEXT (SET_MODE/RESTART_PROCESS/SET_RATE_LIMIT)
+payload JSON
+status TEXT (pending/done/failed)
+result TEXT</code></pre>
+      </div>
+    </section>
+
+    <section class="lp-section">
+      <h2>セキュリティ要件</h2>
+      <div class="card">
+        <ul style="text-align:left">
+          <li><strong>エージェント実行権限:</strong> 任意コマンド禁止、allowlistのみ</li>
+          <li><strong>通信暗号化:</strong> HTTPS必須（Render自動）</li>
+          <li><strong>認証:</strong> X-API-Key + X-AGENT-ID ヘッダー</li>
+          <li><strong>ログ監査:</strong> 全コマンド実行を server + agent 側で記録</li>
+          <li><strong>ファイル操作:</strong> 削除・変更禁止（監視のみ）</li>
+        </ul>
+      </div>
     </section>
   </main>
 </body>
