@@ -9,6 +9,8 @@ from reco2.orchestrator import get_orchestrator
 from reco2.config import load_config, public_config
 from reco2 import input_gate, output_gate
 from reco2.system_monitor import get_system_metrics, get_top_processes, evaluate_system_health, get_algorithm_status, control_algorithm, register_algorithm
+from reco2.db import init_db, WebTargets, Observations, Incidents, Suggestions, Feedback, AuditLog
+from reco2.web_monitor_scheduler import start_monitoring, stop_monitoring
 
 logging.basicConfig(level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -19,6 +21,8 @@ app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["JSON_AS_ASCII"] = False
 app.secret_key = os.getenv("SECRET_KEY", "dev-key-change-in-production")
 ensure_state_file()
+init_db()  # Initialize SQLite database on startup
+start_monitoring()  # Start web monitoring scheduler
 
 # ── API Key Configuration ──────────────────────────────────────
 
@@ -303,6 +307,131 @@ def api_system_algorithm_control(name):
     data = request.get_json(force=True, silent=True) or {}
     action = str(data.get("action", "status"))
     return jsonify(control_algorithm(name, action))
+
+# ── Web Monitoring Routes ──────────────────────────────────────────
+
+@app.post("/api/web-targets")
+@require_api_key
+def api_create_web_target():
+    """Create web monitoring target."""
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        org_id = data.get("org_id", "default")
+
+        target_id = WebTargets.create(
+            name=data.get("name", "Unnamed"),
+            url=data.get("url", ""),
+            method=data.get("method", "GET"),
+            interval_sec=int(data.get("interval_sec", 300)),
+            expected_status=int(data.get("expected_status", 200)),
+            expected_latency_ms=int(data.get("expected_latency_ms", 1000)),
+            tags=data.get("tags", []),
+            org_id=org_id,
+        )
+
+        AuditLog.log(
+            actor="system:api",
+            event_type="create_web_target",
+            ref_id=target_id,
+            payload={"url": data.get("url"), "name": data.get("name")},
+            org_id=org_id,
+        )
+
+        return jsonify({"id": target_id, "status": "created"})
+    except Exception as e:
+        log.error(f"Error creating web target: {e}")
+        return jsonify({"error": str(e)}), 400
+
+@app.get("/api/web-targets")
+@require_api_key
+def api_list_web_targets():
+    """List web monitoring targets."""
+    try:
+        org_id = request.args.get("org_id", "default")
+        targets = WebTargets.list_enabled(org_id=org_id)
+        return jsonify({"targets": targets, "count": len(targets)})
+    except Exception as e:
+        log.error(f"Error listing web targets: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.get("/api/web-targets/<target_id>")
+@require_api_key
+def api_get_web_target(target_id):
+    """Get web target details."""
+    try:
+        target = WebTargets.get_by_id(target_id)
+        if not target:
+            return jsonify({"error": "not_found"}), 404
+
+        # Get recent observations for this target
+        org_id = target.get("org_id", "default")
+        recent_obs = Observations.list_recent(
+            source_type="web",
+            limit=20,
+            org_id=org_id,
+        )
+        target_obs = [o for o in recent_obs if o.get("source_id") == target_id]
+
+        return jsonify({"target": target, "recent_observations": target_obs})
+    except Exception as e:
+        log.error(f"Error getting web target: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.delete("/api/web-targets/<target_id>")
+@require_api_key
+def api_delete_web_target(target_id):
+    """Delete web monitoring target."""
+    try:
+        target = WebTargets.get_by_id(target_id)
+        if not target:
+            return jsonify({"error": "not_found"}), 404
+
+        WebTargets.delete(target_id)
+
+        AuditLog.log(
+            actor="system:api",
+            event_type="delete_web_target",
+            ref_id=target_id,
+            payload={"url": target.get("url")},
+            org_id=target.get("org_id", "default"),
+        )
+
+        return jsonify({"status": "deleted"})
+    except Exception as e:
+        log.error(f"Error deleting web target: {e}")
+        return jsonify({"error": str(e)}), 400
+
+@app.get("/api/incidents")
+@require_api_key
+def api_list_incidents():
+    """List incidents by status."""
+    try:
+        status = request.args.get("status", "open")
+        org_id = request.args.get("org_id", "default")
+        limit = int(request.args.get("limit", 50))
+
+        incidents = Incidents.list_by_status(status, org_id=org_id, limit=limit)
+        return jsonify({"incidents": incidents, "count": len(incidents)})
+    except Exception as e:
+        log.error(f"Error listing incidents: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.get("/api/incidents/<incident_id>")
+@require_api_key
+def api_get_incident(incident_id):
+    """Get incident details with suggestions."""
+    try:
+        incident = Incidents.get_by_id(incident_id)
+        if not incident:
+            return jsonify({"error": "not_found"}), 404
+
+        org_id = incident.get("org_id", "default")
+        suggestions = Suggestions.list_by_incident(incident_id, org_id=org_id)
+
+        return jsonify({"incident": incident, "suggestions": suggestions})
+    except Exception as e:
+        log.error(f"Error getting incident: {e}")
+        return jsonify({"error": str(e)}), 500
 
 def main():
     cfg = load_config()

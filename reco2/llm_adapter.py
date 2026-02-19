@@ -60,8 +60,13 @@ class ClaudeAdapter(BaseLLMAdapter):
             logger.error(f"Failed to parse Claude API response: {e}")
             raise RuntimeError(f"Claude API response parsing failed: {e}")
         except urllib.error.HTTPError as e:
-            logger.error(f"Claude API HTTP error {e.code}: {e.reason}")
-            raise RuntimeError(f"Claude API error {e.code}: {e.reason}")
+            error_body = ""
+            try:
+                error_body = e.read().decode("utf-8")
+            except:
+                pass
+            logger.error(f"Claude API HTTP error {e.code}: {e.reason} | Body: {error_body}")
+            raise RuntimeError(f"Claude API error {e.code}: {e.reason} | {error_body}")
         except urllib.error.URLError as e:
             logger.error(f"Claude API network error: {e}")
             raise RuntimeError(f"Claude API network error: {e}")
