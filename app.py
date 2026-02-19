@@ -12,6 +12,7 @@ from reco2.system_monitor import get_system_metrics, get_top_processes, evaluate
 from reco2.db import init_db, WebTargets, Observations, Incidents, Suggestions, Feedback, AuditLog
 from reco2.web_monitor_scheduler import start_monitoring, stop_monitoring
 from reco2.suggestion_engine import generate_suggestions_for_incident
+from reco2.learning_engine import run_learning_job
 
 logging.basicConfig(level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -556,6 +557,52 @@ def api_feedback_stats():
         })
     except Exception as e:
         log.error(f"Error getting feedback stats: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.post("/api/learning/jobs")
+@require_api_key
+def api_run_learning_job():
+    """Trigger learning job manually."""
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        org_id = data.get("org_id", "default")
+
+        result = run_learning_job(org_id=org_id)
+
+        return jsonify(result)
+    except Exception as e:
+        log.error(f"Error running learning job: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.get("/api/learning/stats")
+@require_api_key
+def api_learning_stats():
+    """Get learning statistics and feedback aggregation."""
+    try:
+        org_id = request.args.get("org_id", "default")
+        period_days = int(request.args.get("period_days", 7))
+
+        stats = Feedback.aggregate_by_type(org_id=org_id, period_days=period_days)
+
+        # Calculate overall metrics
+        total_feedback = sum(s.get("total", 0) for s in stats.values())
+        total_good = sum(s.get("good", 0) for s in stats.values())
+        total_bad = sum(s.get("bad", 0) for s in stats.values())
+        overall_good_ratio = total_good / total_feedback if total_feedback > 0 else 0.0
+
+        return jsonify({
+            "period_days": period_days,
+            "org_id": org_id,
+            "overall": {
+                "total_feedback": total_feedback,
+                "good": total_good,
+                "bad": total_bad,
+                "good_ratio": overall_good_ratio,
+            },
+            "by_type": stats,
+        })
+    except Exception as e:
+        log.error(f"Error getting learning stats: {e}")
         return jsonify({"error": str(e)}), 500
 
 def main():
