@@ -1,7 +1,7 @@
 import logging
 import os
 from functools import wraps
-from flask import Flask, jsonify, request, render_template, redirect, send_from_directory
+from flask import Flask, jsonify, request, render_template, redirect, send_from_directory, session
 
 from reco2.engine import evaluate_payload, record_feedback, patrol, get_status, get_logs
 from reco2.store import ensure_state_file
@@ -16,6 +16,7 @@ log = logging.getLogger("reco3")
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["JSON_AS_ASCII"] = False
+app.secret_key = os.getenv("SECRET_KEY", "dev-key-change-in-production")
 ensure_state_file()
 
 # ── API Key Configuration ──────────────────────────────────────
@@ -120,6 +121,7 @@ def page_index():
     return redirect("/r3", code=302)
 @app.get("/r3")
 def page_r3():
+    session["r3"] = True
     return render_template("reco3.html")
 
 # ── PWA Assets (Root-level for Service Worker scope) ────────────────
@@ -187,6 +189,9 @@ def api_logs():
 @app.post("/api/r3/chat")
 @require_api_key
 def api_r3_chat():
+    if not session.get("r3"):
+        log.warning(f"API request rejected (no valid session): {request.path}")
+        return jsonify({"error": "unauthorized", "detail": "session_expired"}), 401
     try:
         data = request.get_json(force=True, silent=True) or {}
         prompt = str(data.get("prompt", ""))
