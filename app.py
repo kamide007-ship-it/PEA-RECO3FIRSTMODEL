@@ -105,9 +105,9 @@ def check_api_key():
         return
 
     # PWA session auth: if user visited /r3 and has valid session, allow
-    # /api/r3/*, /api/status, /api/logs, /api/feedback (needed by auto-monitor and PWA)
     _pwa_paths = ("/api/r3/", "/api/status", "/api/logs", "/api/feedback", "/api/system",
-                  "/api/agents", "/api/agent-commands", "/api/config/test-mode")
+                  "/api/agents", "/api/agent-commands", "/api/config/test-mode",
+                  "/api/incidents", "/api/suggestions", "/api/learning")
     if session.get("r3") and request.path.startswith(_pwa_paths):
         return
 
