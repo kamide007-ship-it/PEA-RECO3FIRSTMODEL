@@ -41,22 +41,35 @@ function evaluateAndAct(status, logs){
   let action = 'none';
   let reason = '';
 
-  // ルール1: health チェック
-  if(status && status.active_health !== 'ok'){
-    action = 'SAFE_MODE';
-    reason = 'health:' + (status.active_health || 'unknown');
+  // ルール1: LLM接続チェック（adapter/model が取得できない = 異常）
+  if(status){
+    const adapter = status.active_llm_adapter || '';
+    const model = status.active_llm_model || '';
+    if(adapter === 'unknown' || model === 'unknown'){
+      action = 'SAFE_MODE';
+      reason = 'llm:' + adapter + '/' + model;
+    }
+    // API鍵がどちらも無い場合も危険
+    const dk = status.dual_keys || {};
+    if(!dk.has_openai_key && !dk.has_anthropic_key){
+      action = 'SAFE_MODE';
+      reason = 'no_api_keys';
+    }
   }
 
-  // ルール2: ログに警告/エラーがあるか
+  // ルール2: ログの verdict が "suspect" なら自動トリガ
   if(logs && Array.isArray(logs)){
-    const recentLogs = logs.slice(-10);
-    for(const log of recentLogs){
-      const logText = JSON.stringify(log).toUpperCase();
-      if(logText.includes('ALERT') || logText.includes('DENY') || logText.includes('ERROR')){
-        action = 'TRIGGER_CHAT';
-        reason = 'found:' + (log.level || 'ALERT');
-        break;
+    const recent = logs.slice(0, 10); // get_logs は降順（最新が先頭）
+    let suspectCount = 0;
+    for(const entry of recent){
+      if(entry.verdict === 'suspect'){
+        suspectCount++;
       }
+    }
+    // 直近10件中3件以上 suspect → 異常検知
+    if(suspectCount >= 3){
+      action = 'TRIGGER_CHAT';
+      reason = 'suspect:' + suspectCount + '/10';
     }
   }
 
