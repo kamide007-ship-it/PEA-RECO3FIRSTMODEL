@@ -4,47 +4,36 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="manifest" href="/manifest.webmanifest" />
-  <meta name="theme-color" content="#f7e9ef" />
-  <title>RECO3 Dashboard</title>
+  <meta name="theme-color" content="#3FA7D6" />
+  <title>RECO3</title>
   <link rel="stylesheet" href="/static/base.css" />
   <link rel="stylesheet" href="/static/reco3.css" />
 </head>
 <body>
-  <div class="bg"></div>
   <main class="wrap">
     <header class="top">
-      <div>
-        <h1>RECO3 Dashboard</h1>
-        <p class="muted">Input Gate → LLM → Output Gate → RECO2</p>
+      <div style="display:flex;align-items:center;gap:12px">
+        <a href="/b2b"><img src="/static/reco-logo.svg" alt="RECO" height="20" /></a>
+        <div id="autoMonitor"></div>
       </div>
-      <nav class="nav">
-        <a class="btn" href="/health">Health</a>
+      <nav class="nav" style="font-size:13px">
+        <a href="/r3" class="btn" style="border-bottom:2px solid var(--primary)">Dashboard</a>
+        <a href="/b2b" class="btn">B2B</a>
+        <a href="/spec" class="btn">Spec</a>
+        <a href="/tech" class="btn">Tech</a>
       </nav>
     </header>
 
-    <section class="grid2">
-      <section class="card">
-        <h2>Chat</h2>
-        <div id="chat" class="chat"></div>
-        <div class="row">
-          <textarea id="prompt" class="ta" rows="4" placeholder="入力..."></textarea>
-        </div>
-        <div class="row">
-          <input id="domain" class="inp" value="general" />
-          <button class="btn primary" onclick="doSend()">Send</button>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>Session Detail</h2>
-        <div class="kv" id="detail"></div>
-        <h3>Feedback</h3>
-        <div class="row">
-          <button class="btn" onclick="doFb('good')">分かった</button>
-          <button class="btn" onclick="doFb('recalculate')">再計算</button>
-          <button class="btn" onclick="doFb('bad')">全然違う</button>
-        </div>
-      </section>
+    <section class="card">
+      <h2>Chat</h2>
+      <div id="chat" class="chat"></div>
+      <div class="row">
+        <textarea id="prompt" class="ta" rows="3" placeholder="入力..."></textarea>
+      </div>
+      <div class="row">
+        <input id="domain" class="inp" value="general" />
+        <button class="btn primary" onclick="doSend()">Send</button>
+      </div>
     </section>
 
     <section class="grid2">
@@ -56,6 +45,17 @@
         <h2>Output Gate</h2>
         <div id="outBars"></div>
       </section>
+    </section>
+
+    <section class="card">
+      <h2>Detail</h2>
+      <div class="kv" id="detail"></div>
+      <h3>Feedback</h3>
+      <div class="row">
+        <button class="btn" onclick="doFb('good')">OK</button>
+        <button class="btn" onclick="doFb('recalculate')">Recalc</button>
+        <button class="btn" onclick="doFb('bad')">NG</button>
+      </div>
     </section>
 
     <section class="card">

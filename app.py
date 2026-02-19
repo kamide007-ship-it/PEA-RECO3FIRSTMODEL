@@ -95,6 +95,12 @@ def check_api_key():
     if not request.path.startswith("/api/"):
         return
 
+    # PWA session auth: if user visited /r3 and has valid session, allow
+    # /api/r3/*, /api/status, /api/logs, /api/feedback (needed by auto-monitor and PWA)
+    _pwa_paths = ("/api/r3/", "/api/status", "/api/logs", "/api/feedback")
+    if session.get("r3") and request.path.startswith(_pwa_paths):
+        return
+
     # Validate API key
     key = request.headers.get(cfg["header"], "").strip()
     if not key or key != cfg["api_key"]:
@@ -124,6 +130,18 @@ def page_r3():
     session["r3"] = True
     return render_template("reco3.html")
 
+@app.get("/b2b")
+def page_b2b():
+    return render_template("b2b.html")
+
+@app.get("/spec")
+def page_spec():
+    return render_template("spec.html")
+
+@app.get("/tech")
+def page_tech():
+    return render_template("tech.html")
+
 # ── PWA Assets (Root-level for Service Worker scope) ────────────────
 
 @app.get("/manifest.webmanifest")
@@ -142,6 +160,7 @@ def pwa_favicon():
     return send_from_directory(app.static_folder, "favicon.ico", mimetype="image/x-icon")
 
 # ── API Routes ──────────────────────────────────────────────────────
+@app.post("/api/evaluate")
 @require_api_key
 def api_evaluate():
     try:
@@ -191,12 +210,15 @@ def api_r3_chat():
     # セッション認証を優先（PWA用）。セッションが有効なら API_KEY チェックをスキップ
     if not session.get("r3"):
         # セッション無効な場合、API_KEY による認証を試みる（外部API呼び出し用）
-        if os.getenv("API_KEY_MODE", "enforce") == "enforce":
-            api_key_header = os.getenv("API_KEY_HEADER", "X-API-Key")
-            api_key = request.headers.get(api_key_header, "")
-            expected_key = os.getenv("API_KEY", "")
-            if not api_key or (expected_key and api_key != expected_key):
-                log.warning(f"API request rejected (no session, no valid API key): {request.path}")
+        if os.getenv("API_KEY_MODE", "enforce").strip().lower() == "enforce":
+            expected_key = os.getenv("API_KEY", "").strip()
+            if not expected_key:
+                log.warning(f"API request rejected (no session, API_KEY not configured): {request.path}")
+                return jsonify({"error": "unauthorized"}), 401
+            api_key_header = os.getenv("API_KEY_HEADER", "X-API-Key").strip()
+            api_key = request.headers.get(api_key_header, "").strip()
+            if not api_key or api_key != expected_key:
+                log.warning(f"API request rejected (no session, invalid API key): {request.path}")
                 return jsonify({"error": "unauthorized"}), 401
     try:
         data = request.get_json(force=True, silent=True) or {}

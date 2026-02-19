@@ -1,0 +1,56 @@
+/* LP / B2B Landing Page styles */
+.lp-header{position:sticky;top:0;z-index:10;background:var(--white);border-bottom:1px solid var(--border)}
+.lp-header-inner{max-width:800px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;justify-content:space-between}
+.lp-logo{text-decoration:none;display:flex;align-items:center}
+.lp-nav{display:flex;gap:16px;font-size:14px}
+.lp-nav a{text-decoration:none;color:var(--muted);padding:4px 0}
+.lp-nav a.active{color:var(--primary);border-bottom:2px solid var(--primary)}
+.lp-nav a:hover{color:var(--text)}
+
+.lp-wrap{max-width:800px;margin:0 auto;padding:0 16px 48px}
+
+/* Hero */
+.lp-hero{text-align:center;padding:64px 0 48px}
+.lp-hero h1{font-size:28px;font-weight:700;line-height:1.4;letter-spacing:-.02em;color:var(--text)}
+.lp-sub{color:var(--muted);font-size:15px;margin:16px 0 32px;line-height:1.6;max-width:520px;margin-left:auto;margin-right:auto}
+.lp-cta{padding:12px 32px;font-size:15px;border-radius:14px}
+
+/* Sections */
+.lp-section{padding:48px 0;border-top:1px solid var(--border)}
+.lp-section > h2{font-size:18px;font-weight:700;margin-bottom:24px;text-align:center}
+.lp-section > p{text-align:center;color:var(--muted);font-size:14px;margin-bottom:24px;line-height:1.6}
+.lp-section .card{border-radius:14px;padding:20px}
+.lp-section .card h3{font-size:14px;font-weight:600;margin-bottom:8px;color:var(--text)}
+.lp-section .card p{font-size:13px;color:var(--muted);line-height:1.6}
+
+/* Grids */
+.lp-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.lp-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:600px){.lp-grid2,.lp-grid3{grid-template-columns:1fr}}
+
+/* Features */
+.lp-features{display:flex;flex-direction:column;gap:16px}
+.lp-feature{display:flex;gap:16px;align-items:flex-start}
+.lp-icon{flex-shrink:0;width:36px;height:36px;border-radius:10px;background:var(--primary-light);color:var(--primary);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.lp-feature h3{font-size:14px;font-weight:600;margin-bottom:4px}
+.lp-feature p{font-size:13px;color:var(--muted);line-height:1.5}
+
+/* Steps */
+.lp-steps{display:flex;flex-direction:column;gap:20px;max-width:480px;margin:0 auto}
+.lp-step{display:flex;gap:16px;align-items:flex-start}
+.lp-step-num{flex-shrink:0;width:32px;height:32px;border-radius:50%;background:var(--primary);color:var(--white);font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.lp-step h3{font-size:14px;font-weight:600;margin-bottom:4px}
+.lp-step p{font-size:13px;color:var(--muted);line-height:1.5}
+
+/* Plans */
+.lp-plan{text-align:center}
+.lp-plan h3{font-size:15px;margin-bottom:8px}
+.lp-price{font-size:18px;font-weight:700;color:var(--primary);margin-bottom:12px}
+.lp-plan ul{list-style:none;padding:0;font-size:13px;color:var(--muted);line-height:2}
+.lp-plan-primary{border:2px solid var(--primary);background:var(--primary-light)}
+
+/* CTA Section */
+.lp-cta-section{text-align:center;padding:48px 0}
+
+/* Footer */
+.lp-footer{text-align:center;padding:24px 0;color:var(--muted);font-size:12px;border-top:1px solid var(--border)}
