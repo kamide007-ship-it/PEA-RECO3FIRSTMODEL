@@ -1,10 +1,10 @@
 const CACHE_VERSION = "reco3-pwa-v2";
 const APP_SHELL = [
   "/r3",
+  "/manifest.webmanifest",
   "/static/base.css",
   "/static/reco3.css",
-  "/static/reco3.js",
-  "/static/manifest.webmanifest"
+  "/static/reco3.js"
 ];
 
 self.addEventListener("install", (event) => {
