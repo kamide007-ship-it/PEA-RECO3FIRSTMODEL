@@ -353,9 +353,166 @@ function showSystemMetrics(m, h){
   }
 }
 
+// ═══ Incidents & Suggestions (MVP) ══════════════════════════════════
+async function loadIncidents(){
+  try{
+    const status = document.getElementById('incidentStatusFilter')?.value || 'open';
+    const res = await api(`/api/incidents?status=${status}`, 'GET');
+    showIncidents(res.incidents || []);
+  }catch(e){
+    console.warn('loadIncidents error:', e);
+  }
+}
+
+function showIncidents(incidents){
+  const el = document.getElementById('incidentsList');
+  if(!el) return;
+
+  if(!incidents || incidents.length === 0){
+    el.innerHTML = '<div style="color:#999">No incidents</div>';
+    return;
+  }
+
+  let html = '';
+  for(const inc of incidents){
+    const severity_color = {
+      'low': '#10B981',
+      'medium': '#F59E0B',
+      'high': '#EF4444',
+      'critical': '#DC2626'
+    }[inc.severity] || '#999';
+
+    html += `
+      <div style="border:1px solid #ddd;padding:12px;margin:8px 0;border-radius:4px;background:#f9f9f9">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <strong>${inc.title}</strong>
+          <span style="display:inline-block;padding:2px 6px;font-size:12px;border-radius:3px;background:${severity_color};color:white">${inc.severity}</span>
+        </div>
+        <div style="font-size:12px;color:#666;margin-bottom:8px">${inc.summary || ''}</div>
+        <button class="btn" onclick="loadSuggestionsForIncident('${inc.id}')" style="font-size:12px">View Suggestions</button>
+      </div>
+    `;
+  }
+  el.innerHTML = html;
+}
+
+async function loadSuggestionsForIncident(incidentId){
+  try{
+    const res = await api(`/api/incidents/${incidentId}`, 'GET');
+    showSuggestions(res.suggestions || []);
+  }catch(e){
+    console.warn('loadSuggestionsForIncident error:', e);
+  }
+}
+
+function showSuggestions(suggestions){
+  const el = document.getElementById('incidentsList');
+  if(!el) return;
+
+  if(!suggestions || suggestions.length === 0){
+    el.innerHTML = '<div style="color:#999">No suggestions yet</div>';
+    return;
+  }
+
+  let html = '<h3>Suggestions</h3>';
+  for(const sug of suggestions){
+    const conf_pct = Math.round((sug.confidence || 0.5) * 100);
+    html += `
+      <div style="border:1px solid #e3e3e3;padding:12px;margin:8px 0;border-radius:4px;background:#fff">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
+          <div>
+            <strong>${sug.suggestion_type}</strong>
+            <span style="margin-left:8px;font-size:11px;color:#666">confidence: ${conf_pct}%</span>
+          </div>
+          <span style="font-size:12px;color:#666">${sug.status}</span>
+        </div>
+        <div style="font-size:13px;line-height:1.5;margin-bottom:10px;color:#333">${sug.rationale || ''}</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn" onclick="submitFeedback('${sug.id}', 'good')" style="background:#10B981;color:white;padding:4px 12px;font-size:12px;border:none;border-radius:3px;cursor:pointer">👍 Good</button>
+          <button class="btn" onclick="submitFeedback('${sug.id}', 'bad')" style="background:#EF4444;color:white;padding:4px 12px;font-size:12px;border:none;border-radius:3px;cursor:pointer">👎 Bad</button>
+        </div>
+      </div>
+    `;
+  }
+  el.innerHTML = html;
+}
+
+async function submitFeedback(suggestionId, vote){
+  try{
+    await api('/api/feedback', 'POST', {
+      suggestion_id: suggestionId,
+      vote: vote,
+      user_id: 'anonymous'
+    });
+    notify('success', '✓ Feedback saved', `Voted ${vote}`, null);
+
+    // Reload suggestions
+    const incidents = document.getElementById('incidentsList')?.innerText || '';
+    if(incidents.includes('Suggestions')) loadIncidents();
+  }catch(e){
+    console.warn('submitFeedback error:', e);
+    notify('error', '✗ Error', 'Failed to save feedback', null);
+  }
+}
+
+async function runLearningJob(){
+  try{
+    const res = await api('/api/learning/jobs', 'POST', {});
+    notify('success', '✓ Learning Job', 'Job completed: ' + (res.updates?.updated_suggestions || 0) + ' updates', null);
+    loadLearningStats();
+  }catch(e){
+    console.warn('runLearningJob error:', e);
+    notify('error', '✗ Error', 'Failed to run learning job', null);
+  }
+}
+
+async function loadLearningStats(){
+  try{
+    const res = await api('/api/learning/stats', 'GET');
+    showLearningStats(res);
+  }catch(e){
+    console.warn('loadLearningStats error:', e);
+  }
+}
+
+function showLearningStats(stats){
+  const el = document.getElementById('learningStats');
+  if(!el || !stats.overall) return;
+
+  const overall = stats.overall;
+  const good_pct = Math.round(overall.good_ratio * 100);
+
+  let html = `
+    <div class="k">Total Feedback</div>
+    <div>${overall.total_feedback}</div>
+    <div class="k">Good / Bad</div>
+    <div>${overall.good} / ${overall.bad}</div>
+    <div class="k">Good Ratio</div>
+    <div style="font-weight:bold;color:${good_pct > 70 ? '#10B981' : good_pct > 40 ? '#F59E0B' : '#EF4444'}">${good_pct}%</div>
+  `;
+
+  if(stats.by_type && Object.keys(stats.by_type).length > 0){
+    html += '<h4 style="margin-top:12px">By Type:</h4>';
+    for(const [type, data] of Object.entries(stats.by_type)){
+      const type_good_pct = Math.round((data.good_ratio || 0) * 100);
+      html += `
+        <div style="font-size:12px;margin:4px 0">
+          <strong>${type}</strong>: ${type_good_pct}% (${data.good}/${data.total})
+        </div>
+      `;
+    }
+  }
+
+  el.innerHTML = html;
+}
+
 document.addEventListener('DOMContentLoaded', ()=>{
   addMsg('assistant', 'RECO3 ready.');
   autoStart();
   pollSystem();
+  loadIncidents();
+  loadLearningStats();
   sysPollTimer = setInterval(pollSystem, SYS_POLL_INTERVAL);
+  setInterval(loadIncidents, 15000);  // Refresh incidents every 15s
+  setInterval(loadLearningStats, 30000);  // Refresh learning stats every 30s
 });

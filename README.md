@@ -1,3 +1,128 @@
+# RECO3 - Self-Learning Observability & Recommendation Engine
+
+**RECO3** は、「提案 → Good/Bad評価 → 自己学習 → 精度向上」のループを回す **販売可能な自動監視・推奨システム** です。
+
+## 🎯 コア機能（MVP完成）
+
+### 1️⃣ Web Monitoring（エージェント不要）
+- **HTTPヘルスチェック**: 登録URL を 30秒周期で監視
+- **自動異常検知**: HTTP エラー、タイムアウト、高レイテンシを自動検出
+- **Incident生成**: 異常イベントを`incidents`テーブルに記録
+
+### 2️⃣ "止めない"提案システム
+- **ルール提案**: HTTP エラー / タイムアウト / 高遅延 / 404 などのルール
+- **AI提案**: Claude LLM による自然言語の診断・対応案
+- **実行なし**: 提案のみ、自動実行は行わない（Human-in-the-loop）
+
+### 3️⃣ Good/Bad評価 & 自己学習（最重要）
+- **投票UI**: PWA (/r3) に 👍 GOOD / 👎 BAD ボタン
+- **学習**: フィードバック集計 → 高Good率の提案を優先表示
+- **継続改善**: 使うほど精度が上がる
+
+### 4️⃣ 監査ログ完備
+- **全操作追跡**: Web監視、提案生成、投票、学習ジョブがすべて記録
+- **責任分界**: いつ・何を観測・何を提案・どう評価・どう学習したかが履歴に残る
+
+---
+
+## 📐 アーキテクチャ（2モード）
+
+### BtoC（軽量）
+- PWA のみ
+- Web監視 + 提案 + Good/Bad学習
+
+### BtoB（強化）
+- PWA + PC Agent（任意）
+- Web + PC 統合監視
+- 承認付き実行（allowlist 限定）
+- 監査ログ＆RBAC
+
+---
+
+## 🚀 クイックスタート
+
+### デモURL
+- **Dashboard**: https://pea-reco3firstmodel.onrender.com/r3
+- **B2B**: https://pea-reco3firstmodel.onrender.com/b2b
+- **仕様書**: https://pea-reco3firstmodel.onrender.com/spec
+
+### Web監視対象を登録
+```bash
+curl -X POST https://pea-reco3firstmodel.onrender.com/api/web-targets \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Example API",
+    "url": "https://api.example.com/health",
+    "expected_status": 200,
+    "interval_sec": 300
+  }'
+```
+
+### インシデント一覧確認
+```bash
+curl https://pea-reco3firstmodel.onrender.com/api/incidents?status=open \
+  -H "X-API-Key: YOUR_KEY"
+```
+
+### Good/Bad 投票
+```bash
+curl -X POST https://pea-reco3firstmodel.onrender.com/api/feedback \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "suggestion_id": "sug_123",
+    "vote": "good",
+    "user_id": "user@example.com"
+  }'
+```
+
+### 学習ジョブ実行
+```bash
+curl -X POST https://pea-reco3firstmodel.onrender.com/api/learning/jobs \
+  -H "X-API-Key: YOUR_KEY"
+```
+
+---
+
+## 📊 MVP完了条件チェック
+
+- ✅ Web監視が動く（30秒周期HTTP チェック → observations記録 → incident自動生成）
+- ✅ Suggestions生成（ルール4種 + AI提案）
+- ✅ Good/Bad評価UI（PWA に 👍 👎 ボタン）
+- ✅ 自動学習（フィードバック集計 → 優先度更新）
+- ✅ 監査ログ完備（全操作追跡）
+
+詳細: [MVP_COMPLETION_REPORT.md](./MVP_COMPLETION_REPORT.md)
+
+---
+
+## 📚 ドキュメント
+
+| ドキュメント | 内容 |
+|------------|------|
+| [IMPLEMENTATION_SPEC.md](./IMPLEMENTATION_SPEC.md) | 詳細仕様書（データモデル、API、学習エンジン） |
+| [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) | 実装ロードマップ（優先度別フェーズ） |
+| [MVP_COMPLETION_REPORT.md](./MVP_COMPLETION_REPORT.md) | MVP完了報告（テスト方法、アーキテクチャ） |
+
+---
+
+## 🔐 セキュリティ・責任分界
+
+### "止めない"原則
+- **提案が主役**: AI は提案のみ、実行は承認 or allowlist
+- **自動停止なし**: Human-in-the-loop が基本
+- **段階導入**: 初期は alert-only → 承認付き → 限定自動化
+
+### 既存WAF/監視との共存
+- **責任分界**: 最終ブロック = 既存制御、RECO3 = 監査・提案・学習
+- **優先順位**: 既存境界制御 > RECO3 SAFE MODE
+- **操作限定**: allowlist のみ実行可能
+
+詳細: [仕様書の共存ポリシー](./README.md#-責任分界の基本方針)
+
+---
+
 # RECO3 - Flask Application
 
 A Flask-based reasoning engine with dual LLM support (OpenAI GPT & Anthropic Claude) and configurable behavior analysis.
