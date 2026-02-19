@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from functools import wraps
@@ -9,7 +10,8 @@ from reco2.orchestrator import get_orchestrator
 from reco2.config import load_config, public_config
 from reco2 import input_gate, output_gate
 from reco2.system_monitor import get_system_metrics, get_top_processes, evaluate_system_health, get_algorithm_status, control_algorithm, register_algorithm
-from reco2.db import init_db, WebTargets, Observations, Incidents, Suggestions, Feedback, AuditLog
+from reco2.db import (init_db, WebTargets, Observations, Incidents, Suggestions,
+                       Feedback, AuditLog, AgentStatus, AgentLogs, AgentCommands, Approvals)
 from reco2.web_monitor_scheduler import start_monitoring, stop_monitoring
 from reco2.suggestion_engine import generate_suggestions_for_incident
 from reco2.learning_engine import run_learning_job
@@ -98,13 +100,14 @@ def check_api_key():
     if _should_bypass_auth(request.path):
         return
 
-    # Only enforce for /api/* paths
+    # Only enforce for /api/* paths; /agent/* uses its own auth
     if not request.path.startswith("/api/"):
         return
 
     # PWA session auth: if user visited /r3 and has valid session, allow
     # /api/r3/*, /api/status, /api/logs, /api/feedback (needed by auto-monitor and PWA)
-    _pwa_paths = ("/api/r3/", "/api/status", "/api/logs", "/api/feedback", "/api/system")
+    _pwa_paths = ("/api/r3/", "/api/status", "/api/logs", "/api/feedback", "/api/system",
+                  "/api/agents", "/api/agent-commands", "/api/config/test-mode")
     if session.get("r3") and request.path.startswith(_pwa_paths):
         return
 
@@ -604,6 +607,369 @@ def api_learning_stats():
     except Exception as e:
         log.error(f"Error getting learning stats: {e}")
         return jsonify({"error": str(e)}), 500
+
+# ── Agent Auth & Configuration ─────────────────────────────────────
+
+def _get_agent_keys():
+    """Parse RECO3_AGENT_KEYS env var.
+    Supports CSV format: 'agent1=key1,agent2=key2'
+    or JSON format: '{"agent1":"key1","agent2":"key2"}'
+    """
+    raw = os.getenv("RECO3_AGENT_KEYS", "").strip()
+    if not raw:
+        return {}
+    # Try JSON first
+    if raw.startswith("{"):
+        try:
+            return json.loads(raw)
+        except Exception:
+            pass
+    # CSV format: agent_id=api_key,agent_id=api_key
+    keys = {}
+    for pair in raw.split(","):
+        pair = pair.strip()
+        if "=" in pair:
+            aid, akey = pair.split("=", 1)
+            keys[aid.strip()] = akey.strip()
+    return keys
+
+def _validate_agent_request():
+    """Validate agent authentication from X-AGENT-ID + X-API-Key headers.
+    Returns (agent_id, org_id) on success, or aborts with 401.
+    """
+    agent_id = request.headers.get("X-AGENT-ID", "").strip()
+    api_key = request.headers.get("X-API-Key", "").strip()
+
+    if not agent_id or not api_key:
+        return None, None
+
+    agent_keys = _get_agent_keys()
+    expected = agent_keys.get(agent_id)
+    if not expected or expected != api_key:
+        return None, None
+
+    return agent_id, "default"
+
+def _is_test_mode():
+    return os.getenv("RECO3_TEST_MODE", "0").strip() == "1"
+
+def _require_approval():
+    return os.getenv("RECO3_REQUIRE_APPROVAL", "1").strip() == "1"
+
+
+# ── Agent API Endpoints ───────────────────────────────────────────
+
+@app.post("/agent/heartbeat")
+def agent_heartbeat():
+    """Agent sends heartbeat with system metrics."""
+    agent_id, org_id = _validate_agent_request()
+    if not agent_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json(force=True, silent=True) or {}
+
+    AgentStatus.upsert(
+        agent_id=agent_id,
+        platform=data.get("platform", ""),
+        version=data.get("version", "1.0"),
+        payload=data.get("metrics", {}),
+        org_id=org_id,
+    )
+
+    AuditLog.log(
+        actor=f"agent:{agent_id}",
+        event_type="agent_heartbeat",
+        ref_id=agent_id,
+        payload={"platform": data.get("platform"), "version": data.get("version")},
+        org_id=org_id,
+    )
+
+    return jsonify({"status": "ok"})
+
+
+@app.post("/agent/logs")
+def agent_logs_endpoint():
+    """Agent sends log entries."""
+    agent_id, org_id = _validate_agent_request()
+    if not agent_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json(force=True, silent=True) or {}
+    logs_list = data.get("logs", [])
+
+    count = AgentLogs.create_batch(agent_id, logs_list, org_id=org_id)
+
+    # Auto-create incidents for ERROR/CRITICAL logs
+    errors = [l for l in logs_list if l.get("level") in ("ERROR", "CRITICAL")]
+    incident_ids = []
+    for err in errors:
+        inc_id = Incidents.create(
+            severity="high" if err.get("level") == "CRITICAL" else "medium",
+            title=f"Agent {agent_id}: {err.get('code', 'ERROR')}",
+            summary=err.get("msg", ""),
+            org_id=org_id,
+        )
+        incident_ids.append(inc_id)
+
+    AuditLog.log(
+        actor=f"agent:{agent_id}",
+        event_type="agent_logs",
+        ref_id=agent_id,
+        payload={"count": count, "errors": len(errors), "incidents": incident_ids},
+        org_id=org_id,
+    )
+
+    return jsonify({"status": "ok", "count": count, "incidents_created": len(incident_ids)})
+
+
+@app.get("/agent/pull")
+def agent_pull():
+    """Agent polls for pending commands."""
+    agent_id, org_id = _validate_agent_request()
+    if not agent_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    require_approval = _require_approval()
+    pending = AgentCommands.list_pending(agent_id, require_approval=require_approval)
+
+    # Mark as delivered
+    for cmd in pending:
+        AgentCommands.update_status(cmd["id"], "delivered")
+
+    AuditLog.log(
+        actor=f"agent:{agent_id}",
+        event_type="agent_pull",
+        ref_id=agent_id,
+        payload={"commands_delivered": len(pending)},
+        org_id=org_id,
+    )
+
+    return jsonify({"commands": pending})
+
+
+@app.post("/agent/report")
+def agent_report():
+    """Agent reports command execution result."""
+    agent_id, org_id = _validate_agent_request()
+    if not agent_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json(force=True, silent=True) or {}
+    cmd_id = data.get("command_id", "")
+    result = data.get("result", {})
+    cmd_status = data.get("status", "completed")
+
+    if not cmd_id:
+        return jsonify({"error": "missing command_id"}), 400
+
+    cmd = AgentCommands.get_by_id(cmd_id)
+    if not cmd or cmd["agent_id"] != agent_id:
+        return jsonify({"error": "command_not_found"}), 404
+
+    AgentCommands.update_status(cmd_id, cmd_status)
+    AgentCommands.set_result(cmd_id, result)
+
+    AuditLog.log(
+        actor=f"agent:{agent_id}",
+        event_type="agent_report",
+        ref_id=cmd_id,
+        payload={"status": cmd_status, "result": result},
+        org_id=org_id,
+    )
+
+    return jsonify({"status": "ok"})
+
+
+# ── Agent Management API (PWA-facing) ─────────────────────────────
+
+@app.get("/api/agents")
+@require_api_key
+def api_list_agents():
+    """List all agents with status."""
+    try:
+        org_id = request.args.get("org_id", "default")
+        agents = AgentStatus.list_all(org_id=org_id)
+
+        # Enrich with recent error count
+        for agent in agents:
+            recent_logs = AgentLogs.list_recent(
+                agent_id=agent["agent_id"], level="ERROR", limit=10, org_id=org_id
+            )
+            agent["recent_error_count"] = len(recent_logs)
+            agent["last_error"] = recent_logs[0]["msg"] if recent_logs else ""
+
+        return jsonify({"agents": agents, "count": len(agents)})
+    except Exception as e:
+        log.error(f"Error listing agents: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.get("/api/agents/<agent_id>/logs")
+@require_api_key
+def api_agent_logs(agent_id):
+    """Get recent logs for an agent."""
+    try:
+        org_id = request.args.get("org_id", "default")
+        level = request.args.get("level")
+        limit = int(request.args.get("limit", 50))
+        logs_list = AgentLogs.list_recent(
+            agent_id=agent_id, level=level, limit=limit, org_id=org_id
+        )
+        return jsonify({"logs": logs_list, "count": len(logs_list)})
+    except Exception as e:
+        log.error(f"Error getting agent logs: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.get("/api/agent-commands")
+@require_api_key
+def api_list_agent_commands():
+    """List all agent commands (command queue)."""
+    try:
+        org_id = request.args.get("org_id", "default")
+        agent_id = request.args.get("agent_id")
+        limit = int(request.args.get("limit", 50))
+        commands = AgentCommands.list_all(agent_id=agent_id, limit=limit, org_id=org_id)
+
+        # Enrich with approval status
+        for cmd in commands:
+            if cmd["type"] in AgentCommands.STRONG_COMMANDS:
+                approval = Approvals.get_for_command(cmd["id"])
+                cmd["needs_approval"] = True
+                cmd["approved"] = approval is not None
+                cmd["approval"] = approval
+            else:
+                cmd["needs_approval"] = False
+                cmd["approved"] = True
+                cmd["approval"] = None
+
+        return jsonify({"commands": commands, "count": len(commands)})
+    except Exception as e:
+        log.error(f"Error listing commands: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.post("/api/agent-commands")
+@require_api_key
+def api_create_agent_command():
+    """Create a command for an agent (from PWA/admin)."""
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        agent_id = data.get("agent_id", "")
+        cmd_type = data.get("type", "")
+        payload = data.get("payload", {})
+        org_id = data.get("org_id", "default")
+
+        if not agent_id or not cmd_type:
+            return jsonify({"error": "agent_id and type required"}), 400
+
+        cmd_id = AgentCommands.create(
+            agent_id=agent_id, cmd_type=cmd_type, payload=payload, org_id=org_id
+        )
+
+        AuditLog.log(
+            actor="system:pwa",
+            event_type="command_created",
+            ref_id=cmd_id,
+            payload={"agent_id": agent_id, "type": cmd_type, "payload": payload},
+            org_id=org_id,
+        )
+
+        return jsonify({"id": cmd_id, "status": "created"})
+    except Exception as e:
+        log.error(f"Error creating command: {e}")
+        return jsonify({"error": str(e)}), 400
+
+
+@app.post("/api/agent-commands/<cmd_id>/approve")
+@require_api_key
+def api_approve_command(cmd_id):
+    """Approve a strong command (RESTART, ROLLBACK, STOP)."""
+    try:
+        cmd = AgentCommands.get_by_id(cmd_id)
+        if not cmd:
+            return jsonify({"error": "command_not_found"}), 404
+
+        if cmd["type"] not in AgentCommands.STRONG_COMMANDS:
+            return jsonify({"error": "command does not require approval"}), 400
+
+        existing = Approvals.get_for_command(cmd_id)
+        if existing:
+            return jsonify({"error": "already approved", "approval": existing}), 409
+
+        data = request.get_json(force=True, silent=True) or {}
+        approved_by = data.get("approved_by", "admin")
+        org_id = cmd.get("org_id", "default")
+
+        approval_id = Approvals.create(
+            command_id=cmd_id, approved_by=approved_by, org_id=org_id
+        )
+
+        AuditLog.log(
+            actor=f"user:{approved_by}",
+            event_type="command_approved",
+            ref_id=cmd_id,
+            payload={"command_type": cmd["type"], "agent_id": cmd["agent_id"]},
+            org_id=org_id,
+        )
+
+        return jsonify({"approval_id": approval_id, "status": "approved"})
+    except Exception as e:
+        log.error(f"Error approving command: {e}")
+        return jsonify({"error": str(e)}), 400
+
+
+@app.get("/api/r3/agents")
+def api_r3_agents():
+    """List agents for PWA (session auth)."""
+    if not session.get("r3"):
+        cfg = _get_api_key_config()
+        if cfg["mode"] == "enforce":
+            key = request.headers.get(cfg["header"], "").strip()
+            if not key or key != cfg["api_key"]:
+                return jsonify({"error": "unauthorized"}), 401
+    try:
+        org_id = request.args.get("org_id", "default")
+        agents = AgentStatus.list_all(org_id=org_id)
+        for agent in agents:
+            recent_logs = AgentLogs.list_recent(
+                agent_id=agent["agent_id"], level="ERROR", limit=10, org_id=org_id
+            )
+            agent["recent_error_count"] = len(recent_logs)
+            agent["last_error"] = recent_logs[0]["msg"] if recent_logs else ""
+        return jsonify({"agents": agents, "count": len(agents)})
+    except Exception as e:
+        log.error(f"Error listing agents: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.get("/api/r3/agent/<agent_id>/logs")
+def api_r3_agent_logs(agent_id):
+    """Get agent logs for PWA (session auth)."""
+    if not session.get("r3"):
+        cfg = _get_api_key_config()
+        if cfg["mode"] == "enforce":
+            key = request.headers.get(cfg["header"], "").strip()
+            if not key or key != cfg["api_key"]:
+                return jsonify({"error": "unauthorized"}), 401
+    try:
+        org_id = request.args.get("org_id", "default")
+        limit = int(request.args.get("limit", 200))
+        logs_list = AgentLogs.list_recent(agent_id=agent_id, limit=limit, org_id=org_id)
+        return jsonify({"logs": logs_list, "count": len(logs_list)})
+    except Exception as e:
+        log.error(f"Error getting agent logs: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.get("/api/config/test-mode")
+def api_test_mode():
+    """Get test mode and config status (no auth required for PWA)."""
+    return jsonify({
+        "test_mode": _is_test_mode(),
+        "require_approval": _require_approval(),
+    })
+
 
 def main():
     cfg = load_config()

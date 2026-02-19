@@ -1,0 +1,39 @@
+# RECO3 PC Agent Configuration
+# Copy this file to config.yaml and edit values.
+
+base_url: "https://pea-reco3firstmodel.onrender.com"
+agent_id: "pc-001"
+api_key: "devkey"
+platform: "windows"   # windows | macos | linux
+version: "1.0"
+
+# Control settings
+control:
+  apply_enabled: true          # true = Agent CAN execute commands
+  safe_modes: ["NORMAL", "SAFE"]
+
+# Process monitoring
+watch:
+  processes:
+    - name: "python"
+      start_cmd: ""
+      stop_cmd: ""
+      restart_cmd: ""
+      allow_restart: false
+
+  log_files: []
+    # - "/var/log/myapp/error.log"
+    # - "C:/myapp/logs/error.log"
+
+# Polling intervals (seconds)
+intervals:
+  heartbeat_sec: 10
+  pull_sec: 10
+  logs_sec: 15
+
+# Logging
+logging:
+  level: "INFO"
+  file: ""    # Leave empty for stdout
+  max_size_mb: 100
+  backup_count: 5

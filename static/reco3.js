@@ -508,6 +508,7 @@ function showLearningStats(stats){
 
 document.addEventListener('DOMContentLoaded', ()=>{
   addMsg('assistant', 'RECO3 ready.');
+  startAgentMonitoring();  // Start PC Agent monitoring
   autoStart();
   pollSystem();
   loadIncidents();
