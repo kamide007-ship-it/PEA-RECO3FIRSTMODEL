@@ -187,11 +187,17 @@ def api_logs():
     return jsonify(get_logs(limit=limit))
 
 @app.post("/api/r3/chat")
-@require_api_key
 def api_r3_chat():
+    # セッション認証を優先（PWA用）。セッションが有効なら API_KEY チェックをスキップ
     if not session.get("r3"):
-        log.warning(f"API request rejected (no valid session): {request.path}")
-        return jsonify({"error": "unauthorized", "detail": "session_expired"}), 401
+        # セッション無効な場合、API_KEY による認証を試みる（外部API呼び出し用）
+        if os.getenv("API_KEY_MODE", "enforce") == "enforce":
+            api_key_header = os.getenv("API_KEY_HEADER", "X-API-Key")
+            api_key = request.headers.get(api_key_header, "")
+            expected_key = os.getenv("API_KEY", "")
+            if not api_key or (expected_key and api_key != expected_key):
+                log.warning(f"API request rejected (no session, no valid API key): {request.path}")
+                return jsonify({"error": "unauthorized"}), 401
     try:
         data = request.get_json(force=True, silent=True) or {}
         prompt = str(data.get("prompt", ""))
@@ -250,6 +256,11 @@ def api_r3_config():
 
 def main():
     cfg = load_config()
+
+    # Check SECRET_KEY configuration
+    secret_key_env = os.getenv("SECRET_KEY")
+    if not secret_key_env or secret_key_env == "dev-key-change-in-production":
+        log.warning(f"⚠️  SECRET_KEY not set or using default dev key - session authentication will NOT work in production!")
 
     # Log LLM configuration
     orch = get_orchestrator()
