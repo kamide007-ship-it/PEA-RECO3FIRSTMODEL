@@ -163,17 +163,73 @@ def init_db():
             )
         """)
 
-        # agent_status: PC agent heartbeat and metadata
+        # agent_status: PC agent heartbeat and metadata (enhanced for PC Agent)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS agent_status (
                 agent_id TEXT PRIMARY KEY,
                 last_seen DATETIME NOT NULL,
+                platform TEXT DEFAULT '',
+                version TEXT DEFAULT '1.0',
                 payload_json TEXT,
                 org_id TEXT DEFAULT 'default',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # agent_logs: Logs sent from PC agents
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS agent_logs (
+                id TEXT PRIMARY KEY,
+                agent_id TEXT NOT NULL,
+                ts DATETIME NOT NULL,
+                level TEXT NOT NULL,
+                code TEXT DEFAULT '',
+                msg TEXT NOT NULL,
+                meta_json TEXT DEFAULT '{}',
+                org_id TEXT DEFAULT 'default',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(agent_id) REFERENCES agent_status(agent_id)
+            )
+        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_agent_logs_ts ON agent_logs(agent_id, ts)"
+        )
+
+        # agent_commands: Commands queued for PC agents
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS agent_commands (
+                id TEXT PRIMARY KEY,
+                agent_id TEXT NOT NULL,
+                ts DATETIME NOT NULL,
+                type TEXT NOT NULL,
+                payload_json TEXT DEFAULT '{}',
+                status TEXT NOT NULL DEFAULT 'pending',
+                result_json TEXT DEFAULT '{}',
+                org_id TEXT DEFAULT 'default',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(agent_id) REFERENCES agent_status(agent_id)
+            )
+        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_agent_cmds_status ON agent_commands(agent_id, status)"
+        )
+
+        # approvals: Approval records for strong operations (RESTART, ROLLBACK, STOP)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS approvals (
+                id TEXT PRIMARY KEY,
+                command_id TEXT NOT NULL,
+                approved_by TEXT NOT NULL,
+                approved_at DATETIME NOT NULL,
+                org_id TEXT DEFAULT 'default',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(command_id) REFERENCES agent_commands(id)
+            )
+        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_approvals_cmd ON approvals(command_id)"
+        )
 
         # audit_log: Comprehensive audit trail
         cursor.execute("""
@@ -544,6 +600,245 @@ class WebTargets:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM web_targets WHERE id = ?", (target_id,))
+
+
+class AgentStatus:
+    """agent_status table operations."""
+
+    @staticmethod
+    def upsert(agent_id: str, platform: str = "", version: str = "1.0",
+               payload: Dict = None, org_id: str = "default"):
+        """Insert or update agent status (heartbeat)."""
+        now = datetime.utcnow().isoformat() + "Z"
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO agent_status (agent_id, last_seen, platform, version, payload_json, org_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(agent_id) DO UPDATE SET
+                    last_seen = excluded.last_seen,
+                    platform = excluded.platform,
+                    version = excluded.version,
+                    payload_json = excluded.payload_json,
+                    updated_at = excluded.updated_at
+                """,
+                (agent_id, now, platform, version, json.dumps(payload or {}), org_id, now, now),
+            )
+        logger.info(f"Agent heartbeat: {agent_id}")
+
+    @staticmethod
+    def get(agent_id: str) -> Optional[Dict]:
+        """Get agent status by ID."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM agent_status WHERE agent_id = ?", (agent_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    @staticmethod
+    def list_all(org_id: str = "default") -> List[Dict]:
+        """List all agents."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM agent_status WHERE org_id = ? ORDER BY last_seen DESC",
+                (org_id,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+
+class AgentLogs:
+    """agent_logs table operations."""
+
+    @staticmethod
+    def create_batch(agent_id: str, logs: List[Dict], org_id: str = "default") -> int:
+        """Insert batch of log entries. Returns count inserted."""
+        count = 0
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            for entry in logs:
+                log_id = str(uuid.uuid4())
+                ts = entry.get("ts", datetime.utcnow().isoformat() + "Z")
+                cursor.execute(
+                    """
+                    INSERT INTO agent_logs (id, agent_id, ts, level, code, msg, meta_json, org_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        log_id, agent_id, ts,
+                        entry.get("level", "INFO"),
+                        entry.get("code", ""),
+                        entry.get("msg", ""),
+                        json.dumps(entry.get("meta", {})),
+                        org_id,
+                    ),
+                )
+                count += 1
+        logger.info(f"Inserted {count} agent logs for {agent_id}")
+        return count
+
+    @staticmethod
+    def list_recent(agent_id: str = None, level: str = None,
+                    limit: int = 100, org_id: str = "default") -> List[Dict]:
+        """List recent agent logs, optionally filtered."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            query = "SELECT * FROM agent_logs WHERE org_id = ?"
+            params: list = [org_id]
+            if agent_id:
+                query += " AND agent_id = ?"
+                params.append(agent_id)
+            if level:
+                query += " AND level = ?"
+                params.append(level)
+            query += " ORDER BY ts DESC LIMIT ?"
+            params.append(limit)
+            cursor.execute(query, params)
+            return [dict(row) for row in cursor.fetchall()]
+
+
+class AgentCommands:
+    """agent_commands table operations."""
+
+    STRONG_COMMANDS = {"RESTART_PROCESS", "ROLLBACK", "STOP_PROCESS"}
+
+    @staticmethod
+    def create(agent_id: str, cmd_type: str, payload: Dict = None,
+               org_id: str = "default") -> str:
+        """Create a command for an agent."""
+        cmd_id = str(uuid.uuid4())
+        ts = datetime.utcnow().isoformat() + "Z"
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO agent_commands (id, agent_id, ts, type, payload_json, status, org_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (cmd_id, agent_id, ts, cmd_type, json.dumps(payload or {}), "pending", org_id),
+            )
+        logger.info(f"Created command {cmd_id}: {cmd_type} for {agent_id}")
+        return cmd_id
+
+    @staticmethod
+    def list_pending(agent_id: str, require_approval: bool = True) -> List[Dict]:
+        """List pending commands for agent. If require_approval, strong commands need approval."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT * FROM agent_commands
+                WHERE agent_id = ? AND status = 'pending'
+                ORDER BY ts ASC
+                """,
+                (agent_id,),
+            )
+            rows = [dict(row) for row in cursor.fetchall()]
+
+        if not require_approval:
+            return rows
+
+        # Filter: strong commands need approval record
+        result = []
+        for cmd in rows:
+            if cmd["type"] in AgentCommands.STRONG_COMMANDS:
+                approval = Approvals.get_for_command(cmd["id"])
+                if approval:
+                    result.append(cmd)
+                # else: skip, not yet approved
+            else:
+                result.append(cmd)
+        return result
+
+    @staticmethod
+    def list_all(agent_id: str = None, limit: int = 50,
+                 org_id: str = "default") -> List[Dict]:
+        """List all commands, optionally filtered by agent."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            if agent_id:
+                cursor.execute(
+                    """
+                    SELECT * FROM agent_commands
+                    WHERE agent_id = ? AND org_id = ?
+                    ORDER BY ts DESC LIMIT ?
+                    """,
+                    (agent_id, org_id, limit),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT * FROM agent_commands
+                    WHERE org_id = ?
+                    ORDER BY ts DESC LIMIT ?
+                    """,
+                    (org_id, limit),
+                )
+            return [dict(row) for row in cursor.fetchall()]
+
+    @staticmethod
+    def get_by_id(cmd_id: str) -> Optional[Dict]:
+        """Get command by ID."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM agent_commands WHERE id = ?", (cmd_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    @staticmethod
+    def update_status(cmd_id: str, status: str):
+        """Update command status (pending/delivered/inflight/completed/failed)."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE agent_commands SET status = ? WHERE id = ?",
+                (status, cmd_id),
+            )
+
+    @staticmethod
+    def set_result(cmd_id: str, result: Dict):
+        """Set command execution result."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE agent_commands SET result_json = ? WHERE id = ?",
+                (json.dumps(result), cmd_id),
+            )
+
+
+class Approvals:
+    """approvals table operations for strong command authorization."""
+
+    @staticmethod
+    def create(command_id: str, approved_by: str = "admin",
+               org_id: str = "default") -> str:
+        """Approve a command."""
+        approval_id = str(uuid.uuid4())
+        now = datetime.utcnow().isoformat() + "Z"
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO approvals (id, command_id, approved_by, approved_at, org_id)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (approval_id, command_id, approved_by, now, org_id),
+            )
+        logger.info(f"Approved command {command_id} by {approved_by}")
+        return approval_id
+
+    @staticmethod
+    def get_for_command(command_id: str) -> Optional[Dict]:
+        """Get approval for a command."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM approvals WHERE command_id = ? ORDER BY approved_at DESC LIMIT 1",
+                (command_id,),
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
 
 
 class AuditLog:

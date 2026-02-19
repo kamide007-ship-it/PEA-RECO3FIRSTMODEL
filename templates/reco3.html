@@ -18,6 +18,7 @@
       <div style="display:flex;align-items:center;gap:12px">
         <a href="/b2b"><img src="/static/reco-logo.svg" alt="RECO" height="20" /></a>
         <div id="autoMonitor"></div>
+        <div id="testModeBadge"></div>
       </div>
       <nav class="nav" style="font-size:13px">
         <a href="/r3" class="btn" style="border-bottom:2px solid var(--primary)">Dashboard</a>
@@ -27,15 +28,51 @@
       </nav>
     </header>
 
+    <!-- PC Agents Section -->
+    <section class="card">
+      <h2>PC Agents</h2>
+      <div id="agentsList"></div>
+    </section>
+
+    <!-- Agent Metrics (from real heartbeat data) -->
+    <section class="card">
+      <h2>System Metrics</h2>
+      <div id="agentMetrics"></div>
+    </section>
+
+    <!-- Agent Logs (real data from agent) -->
+    <section class="card">
+      <h2>Agent Logs</h2>
+      <div id="agentLogsList" style="max-height:300px;overflow-y:auto"></div>
+    </section>
+
+    <!-- Command Queue -->
+    <section class="card">
+      <h2>Command Queue</h2>
+      <div id="commandQueue" style="max-height:400px;overflow-y:auto"></div>
+      <div id="testControls" style="margin-top:12px;display:none">
+        <h3 style="font-size:14px;margin-bottom:8px">Test Controls</h3>
+        <div class="row" style="flex-wrap:wrap;gap:6px">
+          <button class="btn" onclick="sendTestCmd('SET_MODE',{mode:'SAFE'})" style="background:#3B82F6;color:white;border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:12px">SAFE Mode</button>
+          <button class="btn" onclick="sendTestCmd('SET_MODE',{mode:'NORMAL'})" style="background:#10B981;color:white;border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:12px">NORMAL Mode</button>
+          <button class="btn" onclick="sendTestCmd('SET_RATE_LIMIT',{endpoint:'/api',limit_rps:50})" style="background:#F59E0B;color:white;border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:12px">Rate Limit</button>
+          <button class="btn" onclick="sendTestCmd('RESTART_PROCESS',{process:'python'})" style="background:#EF4444;color:white;border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:12px">RESTART (approval required)</button>
+          <button class="btn" onclick="sendTestCmd('ROLLBACK',{})" style="background:#DC2626;color:white;border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:12px">ROLLBACK (approval required)</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Chat -->
     <section class="card">
       <h2>Chat</h2>
+      <div id="chatStatus"></div>
       <div id="chat" class="chat"></div>
       <div class="row">
         <textarea id="prompt" class="ta" rows="3" placeholder="入力..."></textarea>
       </div>
       <div class="row">
         <input id="domain" class="inp" value="general" />
-        <button class="btn primary" onclick="doSend()">Send</button>
+        <button id="sendBtn" class="btn primary" onclick="doSend()">Send</button>
       </div>
     </section>
 
@@ -82,7 +119,7 @@
     </section>
 
     <section class="card">
-      <h2>System</h2>
+      <h2>Server System</h2>
       <div id="sysMetrics" class="kv"></div>
       <div id="sysHealth" style="margin-top:8px"></div>
     </section>
@@ -93,6 +130,7 @@
     </section>
   </main>
 
+  <script src="/static/agent-ui.js"></script>
   <script src="/static/reco3.js"></script>
   <script>
     if ("serviceWorker" in navigator) {
