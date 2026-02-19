@@ -5,12 +5,6 @@
 .msg.error{background:#FEF2F2;border:1px solid #FECACA;color:#DC2626}
 .kv{display:grid;grid-template-columns:140px 1fr;gap:6px;font-size:13px}
 .kv .k{color:var(--muted)}
-.autoStatus{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px}
-.autoStatus .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
-.autoStatus .dot.on{background:var(--primary)}
-.autoStatus .dot.off{background:#9CA3AF}
-.autoStatus .dot.safe{background:#DC2626}
-.autoStatus span{color:var(--muted)}
 .barRow{margin:4px 0}
 .barLabel{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:2px}
 .bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden}

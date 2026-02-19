@@ -164,6 +164,7 @@ function autoStop(){
   autoRunning = false;
   if(statusPollTimer) clearInterval(statusPollTimer);
   if(logsPollTimer) clearInterval(logsPollTimer);
+  if(sysPollTimer) clearInterval(sysPollTimer);
   addMsg('assistant', '⏹️ Auto monitor stopped.');
   updateAutoMonitorUI();
 }
